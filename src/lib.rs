@@ -5,8 +5,11 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, Shl, Shr},
 };
 
+mod asm;
 #[cfg(test)]
 mod tests;
+
+pub use asm::compile_asm;
 
 /// # Memory Layout
 /// ## Instruction Pointer
@@ -45,6 +48,12 @@ impl Computer {
     pub const fn new() -> Self {
         Self {
             memory: [0; 0x10000],
+        }
+    }
+
+    pub fn insert_data(&mut self, idx: usize, data: &[u16]) {
+        for (word_idx, word) in data.iter().enumerate() {
+            self.memory[idx + word_idx] = *word;
         }
     }
 
