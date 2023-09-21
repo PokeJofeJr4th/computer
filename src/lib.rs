@@ -36,10 +36,20 @@ impl Computer {
     pub const MOV_LIT_DEST: u16 = 0x0001;
     pub const JMP_SRC: u16 = 0x0002;
     pub const JMP_LIT: u16 = 0x0003;
-    pub const ADD_SRC_DEST: u16 = 0x0004;
-    pub const ADD_LIT_DEST: u16 = 0x0005;
-    pub const ADD_SRCA_SRC_DEST: u16 = 0x0006;
-    pub const ADD_LIT_SRC_DEST: u16 = 0x0007;
+    pub const ADD_SRC_DEST: u16 = 0x0010;
+    pub const ADD_LIT_DEST: u16 = 0x0011;
+    pub const ADD_SRCA_SRC_DEST: u16 = 0x0012;
+    pub const ADD_LIT_SRC_DEST: u16 = 0x0013;
+    pub const INC_PTR: u16 = 0x0018;
+    pub const SUB_SRC_DEST: u16 = 0x0020;
+    pub const SUB_LIT_DEST: u16 = 0x0021;
+    pub const SUB_SRCA_SRC_DEST: u16 = 0x0022;
+    pub const SUB_LIT_SRC_DEST: u16 = 0x0023;
+    pub const SUB_SRC_LIT_DEST: u16 = 0x0024;
+    pub const MUL_SRC_DEST: u16 = 0x0030;
+    pub const MUL_LIT_DEST: u16 = 0x0031;
+    pub const MUL_SRCA_SRC_DEST: u16 = 0x0032;
+    pub const MUL_LIT_SRC_DEST: u16 = 0x0033;
 
     #[must_use]
     pub const fn new() -> Self {
@@ -61,14 +71,14 @@ impl Computer {
             let destination = self.get_mem(instruction_ptr + 2);
             self.set_mem(destination, source_value);
             // consume 3 words
-            *self.mut_mem(Self::INSTRUCTION_PTR) += 3;
+            self.advance_instruction(3);
         } else if instruction == Self::MOV_LIT_DEST {
             // MOV $LIT &DEST
             let literal = self.get_mem(instruction_ptr + 1);
             let destination = self.get_mem(instruction_ptr + 2);
             self.set_mem(destination, literal);
             // consume 3 words
-            *self.mut_mem(Self::INSTRUCTION_PTR) += 3;
+            self.advance_instruction(3);
         } else if instruction == Self::JMP_LIT {
             // JMP $LIT
             let address = self.get_mem(instruction_ptr + 1);
@@ -85,17 +95,37 @@ impl Computer {
             let source = self.get_mem(instruction_ptr + 1);
             let source_value = self.get_mem(source);
             let destination = self.get_mem(instruction_ptr + 2);
-            let destination_value = self.get_mem(destination);
-            let sum_value = source_value + destination_value;
-            self.set_mem(destination, sum_value);
-            // consume 3 words
-            *self.mut_mem(Self::INSTRUCTION_PTR) += 3;
+            self.add_mem(destination, source_value);
+            self.advance_instruction(3);
         } else if instruction == Self::ADD_LIT_DEST {
             // ADD $LIT &DEST
             let literal = self.get_mem(instruction_ptr + 1);
             let destination = self.get_mem(instruction_ptr + 2);
-            *self.mut_mem(destination) += literal;
+            self.add_mem(destination, literal);
+        } else if instruction == Self::ADD_SRCA_SRC_DEST {
+            // &DEST = &SRC - &SRCA
+            let source_a = self.get_mem(instruction_ptr + 1);
+            let source_a_value = self.get_mem(source_a);
+            let source = self.get_mem(instruction_ptr + 2);
+            let source_value = self.get_mem(source);
+            let destination = self.get_mem(instruction_ptr + 3);
+            self.set_mem(destination, source_a_value.wrapping_add(source_value));
+            self.advance_instruction(4);
+        } else if instruction == Self::ADD_LIT_SRC_DEST {
+            // &DEST = &SRC + $LIT
+            let literal = self.get_mem(instruction_ptr + 1);
+            let source = self.get_mem(instruction_ptr + 2);
+            let source_value = self.get_mem(source);
+            let destination = self.get_mem(instruction_ptr + 3);
+            self.set_mem(destination, source_value.wrapping_add(literal));
+            self.advance_instruction(4);
+        } else if instruction == Self::INC_PTR {
+            // &PTR ++
+            let pointer = self.get_mem(instruction_ptr + 1);
+            self.add_mem(pointer, 1);
+            self.advance_instruction(2);
         }
+        // TODO: SUB, MUL
     }
 
     #[must_use]
@@ -109,5 +139,13 @@ impl Computer {
 
     pub fn mut_mem(&mut self, idx: u16) -> &mut u16 {
         &mut self.memory[idx as usize]
+    }
+
+    pub fn add_mem(&mut self, idx: u16, value: u16) {
+        self.memory[idx as usize] = self.memory[idx as usize].wrapping_add(value);
+    }
+
+    pub fn advance_instruction(&mut self, value: u16) {
+        self.add_mem(Self::INSTRUCTION_PTR, value);
     }
 }
