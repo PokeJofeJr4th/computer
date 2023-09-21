@@ -14,7 +14,7 @@ first nibble: operation
 - 7: LE
 - 8: GT
 - 9: GE
-- A: NOT
+- A: NOT (special)
 - B: AND
 - C: OR
 - D: XOR
@@ -69,3 +69,13 @@ second nibble: mode
 - F: third nibble is mode, fourth nibble unused
 
 third nibble: first arg / fourth nibble: second arg
+
+### NOT
+
+second nibble: mode
+- 0: NOT &SRC
+- 1: NOT &SRC, &DST
+- 2: mode 0, but the arg is another word
+- 3: mode 1, third nibble is &SRC, &DST is another word
+- 4: mode 1, third nibble is &DST, &SRC is another word
+- 5: mode 1, &SRC and &DST are additional words

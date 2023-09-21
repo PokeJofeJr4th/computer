@@ -66,37 +66,81 @@ impl Computer {
         if nibbles.0 == 0 {
             // MOV/JMP
             if nibbles.1 <= 8 {
+                // normal thing with 1-2 arguments
                 self.advance_instruction(1);
                 self.mov_or_jmp(nibbles.1, nibbles.2, nibbles.3);
             } else if nibbles.1 == 0xD {
+                // third nibble is mode, fourth nibble is first arg
                 let second_arg = self.get_mem(instruction_ptr + 1);
                 self.advance_instruction(2);
                 self.mov_or_jmp(nibbles.2, nibbles.3, second_arg);
             } else if nibbles.1 == 0xE {
+                // third nibble is mode, fourth nibble is second arg
                 let first_arg = self.get_mem(instruction_ptr + 1);
                 self.advance_instruction(2);
                 self.mov_or_jmp(nibbles.2, first_arg, nibbles.3);
             } else if nibbles.1 == 0xF {
+                // third nibble is mode, fourth nibble is unused
                 let first_arg = self.get_mem(instruction_ptr + 1);
                 let second_arg = self.get_mem(instruction_ptr + 2);
                 self.advance_instruction(3);
                 self.mov_or_jmp(nibbles.2, first_arg, second_arg);
             }
         } else if nibbles.0 == 1 {
+            // ADD
             self.math_op_outer(u16::wrapping_add, instruction_ptr, nibbles);
         } else if nibbles.0 == 2 {
+            // SUB
             self.math_op_outer(u16::wrapping_sub, instruction_ptr, nibbles);
         } else if nibbles.0 == 3 {
+            // MUL
             self.math_op_outer(u16::wrapping_mul, instruction_ptr, nibbles);
+        } else if nibbles.0 == 0xA {
+            // NOT
+            if nibbles.1 == 0 {
+                // NOT &SRC
+                self.not_instruction(nibbles.2, nibbles.2);
+                self.advance_instruction(1);
+            } else if nibbles.1 == 1 {
+                // NOT &SRC, &DEST
+                self.not_instruction(nibbles.2, nibbles.3);
+                self.advance_instruction(1);
+            } else if nibbles.1 == 2 {
+                // NOT &SRC | SRC
+                let source = self.get_mem(instruction_ptr + 1);
+                self.not_instruction(source, source);
+                self.advance_instruction(2);
+            } else if nibbles.1 == 3 {
+                // NOT &SRC, &DST | DST
+                let destination = self.get_mem(instruction_ptr + 1);
+                self.not_instruction(nibbles.2, destination);
+                self.advance_instruction(2);
+            } else if nibbles.1 == 4 {
+                // NOT &SRC, &DST | SRC
+                let source = self.get_mem(instruction_ptr + 1);
+                self.not_instruction(source, nibbles.2);
+                self.advance_instruction(2);
+            } else if nibbles.1 == 5 {
+                // NOT &SRC, &DST | SRC | DST
+                let source = self.get_mem(instruction_ptr + 1);
+                let destination = self.get_mem(instruction_ptr + 2);
+                self.not_instruction(source, destination);
+                self.advance_instruction(3);
+            }
         } else if nibbles.0 == 0xB {
+            // AND
             self.math_op_outer(BitAnd::bitand, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xC {
+            // OR
             self.math_op_outer(BitOr::bitor, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xD {
+            // XOR
             self.math_op_outer(BitXor::bitxor, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xE {
+            // SHL
             self.math_op_outer(Shl::shl, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xF {
+            // SHR
             self.math_op_outer(Shr::shr, instruction_ptr, nibbles);
         }
     }
@@ -210,6 +254,11 @@ impl Computer {
             let source = self.get_mem(second_arg);
             self.set_mem(third_arg, operation(source_a, source));
         }
+    }
+
+    fn not_instruction(&mut self, source: u16, destination: u16) {
+        let source = self.get_mem(source);
+        self.set_mem(destination, !source);
     }
 
     #[must_use]
