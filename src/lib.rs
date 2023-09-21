@@ -5,6 +5,9 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, Shl, Shr},
 };
 
+#[cfg(test)]
+mod tests;
+
 /// # Memory Layout
 /// ## Instruction Pointer
 /// 0x0010
@@ -36,6 +39,7 @@ impl Debug for Computer {
 impl Computer {
     pub const INSTRUCTION_PTR: u16 = 0x0010;
     pub const YIELD_REGISTER: u16 = 0x0011;
+    pub const YIELD_INSTRUCTION: u16 = 0x0A00;
 
     #[must_use]
     pub const fn new() -> Self {
@@ -57,6 +61,11 @@ impl Computer {
             return;
         }
         let instruction = self.get_mem(instruction_ptr);
+        if instruction == Self::YIELD_INSTRUCTION {
+            self.set_mem(Self::YIELD_REGISTER, 1);
+            self.advance_instruction(1);
+            return;
+        }
         let nibbles = u16_to_nibbles(instruction);
         if nibbles.0 == 0 {
             // MOV/JMP

@@ -2,6 +2,8 @@
 
 `&XXXX` refers to a pointer; the value in machine code is the memory address. `#XXXX` refers to a literal; the value in machine code is an actual number being used.
 
+Magic Value: 0x0A00 yields
+
 first nibble: operation
 
 - 0: MOV/JMP (remaining nibbles special)
