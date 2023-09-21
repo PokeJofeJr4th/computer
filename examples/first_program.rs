@@ -1,11 +1,11 @@
-use computer::{program, Computer};
+use computer::Computer;
 
 const PROGRAM_LOCATION: u16 = 0x8000;
 
 fn prog() -> Computer {
-    program!(
-        ADD #0x0001, &0x0010;
-        JMP #PROGRAM_LOCATION;
+    todo!(
+        "ADD #0x0001, &0x0010;
+        JMP #PROGRAM_LOCATION;"
     )
 }
 

@@ -2,13 +2,12 @@
 
 use std::fmt::Debug;
 
-mod asm;
-
 /// # Memory Layout
-/// ## Instruction Pointer - 0x0000 - 0x0001
+/// ## Instruction Pointer
+/// 0x0000
+/// ## General-Purpose Registers
+/// 0x0010 - 0x001F
 /// ## Screen Registers
-/// ## Stack
-/// ## Heap
 pub struct Computer {
     memory: [u16; 0x10000],
 }
@@ -29,27 +28,7 @@ impl Debug for Computer {
 }
 
 impl Computer {
-    pub const INSTRUCTION_PTR: u16 = 0;
-    pub const INSTRUCTION_PTR_USIZE: usize = Self::INSTRUCTION_PTR as usize;
-
-    pub const MOV_SRC_DEST: u16 = 0x0000;
-    pub const MOV_LIT_DEST: u16 = 0x0001;
-    pub const JMP_SRC: u16 = 0x0002;
-    pub const JMP_LIT: u16 = 0x0003;
-    pub const ADD_SRC_DEST: u16 = 0x0010;
-    pub const ADD_LIT_DEST: u16 = 0x0011;
-    pub const ADD_SRCA_SRC_DEST: u16 = 0x0012;
-    pub const ADD_LIT_SRC_DEST: u16 = 0x0013;
-    pub const INC_PTR: u16 = 0x0018;
-    pub const SUB_SRC_DEST: u16 = 0x0020;
-    pub const SUB_LIT_DEST: u16 = 0x0021;
-    pub const SUB_SRCA_SRC_DEST: u16 = 0x0022;
-    pub const SUB_LIT_SRC_DEST: u16 = 0x0023;
-    pub const SUB_SRC_LIT_DEST: u16 = 0x0024;
-    pub const MUL_SRC_DEST: u16 = 0x0030;
-    pub const MUL_LIT_DEST: u16 = 0x0031;
-    pub const MUL_SRCA_SRC_DEST: u16 = 0x0032;
-    pub const MUL_LIT_SRC_DEST: u16 = 0x0033;
+    pub const INSTRUCTION_PTR: u16 = 0x0010;
 
     #[must_use]
     pub const fn new() -> Self {
@@ -64,68 +43,62 @@ impl Computer {
             return;
         }
         let instruction = self.get_mem(instruction_ptr);
-        if instruction == Self::MOV_SRC_DEST {
-            // MOV &SRC &DEST
-            let source = self.get_mem(instruction_ptr + 1);
-            let source_value = self.get_mem(source);
-            let destination = self.get_mem(instruction_ptr + 2);
-            self.set_mem(destination, source_value);
-            // consume 3 words
-            self.advance_instruction(3);
-        } else if instruction == Self::MOV_LIT_DEST {
-            // MOV $LIT &DEST
-            let literal = self.get_mem(instruction_ptr + 1);
-            let destination = self.get_mem(instruction_ptr + 2);
-            self.set_mem(destination, literal);
-            // consume 3 words
-            self.advance_instruction(3);
-        } else if instruction == Self::JMP_LIT {
-            // JMP $LIT
-            let address = self.get_mem(instruction_ptr + 1);
-            self.set_mem(Self::INSTRUCTION_PTR, address);
-            // don't need to consume any words, since we're just moving the pointer anyway
-        } else if instruction == Self::JMP_SRC {
-            // JMP &SRC
-            let source = self.get_mem(instruction_ptr + 1);
-            let source_value = self.get_mem(source);
-            self.set_mem(Self::INSTRUCTION_PTR, source_value);
-            // don't need to consume any words, since we're just moving the pointer anyway
-        } else if instruction == Self::ADD_SRC_DEST {
-            // ADD &SRC &DEST
-            let source = self.get_mem(instruction_ptr + 1);
-            let source_value = self.get_mem(source);
-            let destination = self.get_mem(instruction_ptr + 2);
-            self.add_mem(destination, source_value);
-            self.advance_instruction(3);
-        } else if instruction == Self::ADD_LIT_DEST {
-            // ADD $LIT &DEST
-            let literal = self.get_mem(instruction_ptr + 1);
-            let destination = self.get_mem(instruction_ptr + 2);
-            self.add_mem(destination, literal);
-        } else if instruction == Self::ADD_SRCA_SRC_DEST {
-            // &DEST = &SRC - &SRCA
-            let source_a = self.get_mem(instruction_ptr + 1);
-            let source_a_value = self.get_mem(source_a);
-            let source = self.get_mem(instruction_ptr + 2);
-            let source_value = self.get_mem(source);
-            let destination = self.get_mem(instruction_ptr + 3);
-            self.set_mem(destination, source_a_value.wrapping_add(source_value));
-            self.advance_instruction(4);
-        } else if instruction == Self::ADD_LIT_SRC_DEST {
-            // &DEST = &SRC + $LIT
-            let literal = self.get_mem(instruction_ptr + 1);
-            let source = self.get_mem(instruction_ptr + 2);
-            let source_value = self.get_mem(source);
-            let destination = self.get_mem(instruction_ptr + 3);
-            self.set_mem(destination, source_value.wrapping_add(literal));
-            self.advance_instruction(4);
-        } else if instruction == Self::INC_PTR {
-            // &PTR ++
-            let pointer = self.get_mem(instruction_ptr + 1);
-            self.add_mem(pointer, 1);
-            self.advance_instruction(2);
+        let nibbles = (
+            instruction >> 12,
+            instruction >> 8 & 0xf,
+            instruction >> 4 & 0xf,
+            instruction & 0xf,
+        );
+        if nibbles.0 == 0 {
+            // MOV/JMP
+            if nibbles.1 <= 8 {
+                self.mov_or_jmp(nibbles.1, nibbles.2, nibbles.3);
+            }
         }
-        // TODO: SUB, MUL
+    }
+
+    fn mov_or_jmp(&mut self, mode: u16, first_arg: u16, second_arg: u16) {
+        if mode == 0 {
+            // MOV &SRC, &DST
+            self.set_mem(second_arg, self.get_mem(first_arg));
+        } else if mode == 1 {
+            // MOV #LIT, &DST
+            self.set_mem(second_arg, first_arg);
+        } else if mode == 2 {
+            // SWP &SRC, &DST
+            let inter = self.get_mem(first_arg);
+            self.set_mem(first_arg, self.get_mem(second_arg));
+            self.set_mem(second_arg, inter);
+        } else if mode == 3 {
+            // JMP &SRC
+            let source = self.get_mem(first_arg);
+            self.set_mem(Self::INSTRUCTION_PTR, source);
+        } else if mode == 4 {
+            // JMP #LIT
+            self.set_mem(Self::INSTRUCTION_PTR, first_arg);
+        } else if mode == 5 {
+            // JEZ &CMP &SRC
+            let comparison = self.get_mem(first_arg);
+            if comparison == 0 {
+                let source = self.get_mem(second_arg);
+                self.set_mem(Self::INSTRUCTION_PTR, source);
+            }
+        } else if mode == 6 {
+            // JEZ &CMP #LIT
+            let comparison = self.get_mem(first_arg);
+            if comparison == 0 {
+                self.set_mem(Self::INSTRUCTION_PTR, second_arg);
+            }
+        } else if mode == 7 {
+            // JNZ &CMP &SRC
+            let comparison = self.get_mem(first_arg);
+            if comparison != 0 {
+                let source = self.get_mem(second_arg);
+                self.set_mem(Self::INSTRUCTION_PTR, source);
+            }
+        } else if mode == 8 {
+            // JNZ &CMP #LIT
+        }
     }
 
     #[must_use]

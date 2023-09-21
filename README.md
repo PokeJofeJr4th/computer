@@ -1,52 +1,71 @@
 # Assembly
 
-`&XXXX` refers to a pointer; the value in machine code is the memory address. `$XXXX` refers to a literal; the value in machine code is an actual number being used.
+`&XXXX` refers to a pointer; the value in machine code is the memory address. `#XXXX` refers to a literal; the value in machine code is an actual number being used.
 
-### Move
+first nibble: operation
 
-```
-HEX   ASM              DESCRIPTION
-0000  MOV &SRC, &DEST  &DEST = &SRC
-0001  MOV $LIT, &DEST  &DEST = $LT
-```
+- 0: MOV/JMP (remaining nibbles special)
+- 1: ADD
+- 2: SUB
+- 3: MUL
+- 4: EQ
+- 5: NE
+- 6: LT
+- 7: LE
+- 8: GT
+- 9: GE
+- A: NOT
+- B: AND
+- C: OR
+- D: XOR
+- E: ?
+- F: ?
 
-### Jump
+second nibble: mode
 
-```
-HEX   ASM
-0002  JMP &SRC
-0003  JMP $LIT
-```
+- 0: &SRC, &DEST (&DEST += &SRC)
+- 0 (CMP): J__ &SRC, &SRCA, &DST (if &SRC > &SRCA)
+- 1: #LIT, &DEST (&DEST += #LIT)
+- 1 (CMP): J__ #LIT, &SRC, &DST (if #LIT > &SRC)
+- 2: &SRCA, &SRC, &DEST (&DEST = &SRCA + &SRC)
+- 3: #LIT, &SRC, &DEST (&DEST = &SRC + #LIT)
+- 4: &SRC, #LIT, &DEST (&DEST = #LIT + &SRC; only when order matters)
+- 5 (CMP): J__ &SRC, #LIT, &DST (if &SRC > #LIT)
+- 6: ?
+- 7: ?
+- 8: ?
+- 9: ?
+- A: ?
+- B: ?
+- C: ?
+- D: third nibble is mode, fourth nibble is first arg
+- E: third nibble is mode, fourth nibble is second arg
+- F: third nibble is mode, fourth nibble unused
 
-### Add
+third nibble: first arg / fourth nibble: second arg
 
-```
-HEX   ASM                     DESCRIPTION
-0010  ADD &SRC, &DEST         &DEST += &SRC
-0011  ADD $LIT, &DEST         &DEST += $LIT
-0012  ADD &SRCA, &SRC, &DEST  &DEST = &SRCA + &SRC
-0013  ADD $LIT, &SRC, &DEST   &DEST = &SRC + $LIT
+- literal from 0-15
+- one of 16 predefined registers (r0-rF/r15)
 
-0018  INC &PTR                &PTR++
-```
+### MOV / JMP
 
-### Subtract
+second nibble: mode
 
-```
-HEX   ASM                     DESCRIPTION
-0020  SUB &SRC, &DEST         &DEST -= &SRC
-0021  SUB $LIT, &DEST         &DEST -= $LIT
-0022  SUB &SRCA, &SRC, &DEST  &DEST = &SRC - &SRCA
-0023  SUB $LIT, &SRC, &DEST   &DEST = &SRC - $LIT
-0024  SUB &SRC, $LIT, &DEST   &DEST = $LIT - &SRC
-```
+- 0: MOV &SRC, &DEST
+- 1: MOV #LIT, &DEST
+- 2: SWP &SRC, &DEST
+- 3: JMP &SRC
+- 4: JMP #LIT
+- 5: JEZ &CND &SRC
+- 6: JEZ &CND #LIT
+- 7: JNZ &CND &SRC
+- 8: JNZ &CND #LIT
+- 9: ?
+- A: ?
+- B: ?
+- C: ?
+- D: third nibble is mode, fourth nibble is first arg
+- E: third nibble is mode, fourth nibble is second arg
+- F: third nibble is mode, fourth nibble unused
 
-### Multiply
-
-```
-HEX   ASM                     DESCRIPTION
-0030  MUL &SRC, &DEST         &DEST *= &SRC
-0031  MUL $LIT, &DEST         &DEST *= $LIT
-0032  MUL &SRCA, &SRC, &DEST  &DEST = &SRCA * &SRC
-0033  MUL $LIT, &SRC, &DEST   &DEST = $LIT * &SRC
-```
+third nibble: first arg / fourth nibble: second arg
