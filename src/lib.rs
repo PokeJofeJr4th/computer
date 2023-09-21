@@ -57,12 +57,7 @@ impl Computer {
             return;
         }
         let instruction = self.get_mem(instruction_ptr);
-        let nibbles = (
-            instruction >> 12,
-            instruction >> 8 & 0xf,
-            instruction >> 4 & 0xf,
-            instruction & 0xf,
-        );
+        let nibbles = u16_to_nibbles(instruction);
         if nibbles.0 == 0 {
             // MOV/JMP
             if nibbles.1 <= 8 {
@@ -95,38 +90,27 @@ impl Computer {
         } else if nibbles.0 == 3 {
             // MUL
             self.math_op_outer(u16::wrapping_mul, instruction_ptr, nibbles);
+        } else if nibbles.0 == 4 {
+            // EQ
+            self.cmp_op_outer(PartialEq::eq, instruction_ptr, nibbles);
+        } else if nibbles.0 == 5 {
+            // NE
+            self.cmp_op_outer(PartialEq::ne, instruction_ptr, nibbles);
+        } else if nibbles.0 == 6 {
+            // LT
+            self.cmp_op_outer(PartialOrd::lt, instruction_ptr, nibbles);
+        } else if nibbles.0 == 7 {
+            // LE
+            self.cmp_op_outer(PartialOrd::le, instruction_ptr, nibbles);
+        } else if nibbles.0 == 8 {
+            // GT
+            self.cmp_op_outer(PartialOrd::gt, instruction_ptr, nibbles);
+        } else if nibbles.0 == 9 {
+            // GE
+            self.cmp_op_outer(PartialOrd::ge, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xA {
             // NOT
-            if nibbles.1 == 0 {
-                // NOT &SRC
-                self.not_instruction(nibbles.2, nibbles.2);
-                self.advance_instruction(1);
-            } else if nibbles.1 == 1 {
-                // NOT &SRC, &DEST
-                self.not_instruction(nibbles.2, nibbles.3);
-                self.advance_instruction(1);
-            } else if nibbles.1 == 2 {
-                // NOT &SRC | SRC
-                let source = self.get_mem(instruction_ptr + 1);
-                self.not_instruction(source, source);
-                self.advance_instruction(2);
-            } else if nibbles.1 == 3 {
-                // NOT &SRC, &DST | DST
-                let destination = self.get_mem(instruction_ptr + 1);
-                self.not_instruction(nibbles.2, destination);
-                self.advance_instruction(2);
-            } else if nibbles.1 == 4 {
-                // NOT &SRC, &DST | SRC
-                let source = self.get_mem(instruction_ptr + 1);
-                self.not_instruction(source, nibbles.2);
-                self.advance_instruction(2);
-            } else if nibbles.1 == 5 {
-                // NOT &SRC, &DST | SRC | DST
-                let source = self.get_mem(instruction_ptr + 1);
-                let destination = self.get_mem(instruction_ptr + 2);
-                self.not_instruction(source, destination);
-                self.advance_instruction(3);
-            }
+            self.not_outer(instruction_ptr, nibbles);
         } else if nibbles.0 == 0xB {
             // AND
             self.math_op_outer(BitAnd::bitand, instruction_ptr, nibbles);
@@ -236,6 +220,41 @@ impl Computer {
         }
     }
 
+    fn cmp_op_outer<F: Fn(&u16, &u16) -> bool>(
+        &mut self,
+        operation: F,
+        instruction_ptr: u16,
+        nibbles: (u16, u16, u16, u16),
+    ) {
+        self.advance_instruction(2);
+        if nibbles.1 <= 4 {
+            // normal
+            let third_arg = self.get_mem(instruction_ptr + 1);
+            self.cmp_op(operation, nibbles.1, nibbles.2, nibbles.3, third_arg);
+        } else if nibbles.1 == 0xC {
+            self.advance_instruction(1);
+            let second_arg = self.get_mem(instruction_ptr + 1);
+            let third_arg = self.get_mem(instruction_ptr + 2);
+            self.cmp_op(operation, nibbles.2, nibbles.3, second_arg, third_arg);
+        } else if nibbles.1 == 0xD {
+            self.advance_instruction(1);
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            let third_arg = self.get_mem(instruction_ptr + 2);
+            self.cmp_op(operation, nibbles.2, first_arg, nibbles.3, third_arg);
+        } else if nibbles.2 == 0xE {
+            self.advance_instruction(1);
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            let second_arg = self.get_mem(instruction_ptr + 2);
+            self.cmp_op(operation, nibbles.2, first_arg, second_arg, nibbles.3);
+        } else if nibbles.2 == 0xF {
+            self.advance_instruction(2);
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            let second_arg = self.get_mem(instruction_ptr + 2);
+            let third_arg = self.get_mem(instruction_ptr + 3);
+            self.cmp_op(operation, nibbles.2, first_arg, second_arg, third_arg);
+        }
+    }
+
     fn math_op<F: Fn(u16, u16) -> u16>(
         &mut self,
         operation: F,
@@ -253,6 +272,87 @@ impl Computer {
             let source_a = self.get_mem(first_arg);
             let source = self.get_mem(second_arg);
             self.set_mem(third_arg, operation(source_a, source));
+        }
+    }
+
+    fn cmp_op<F: Fn(&u16, &u16) -> bool>(
+        &mut self,
+        operation: F,
+        mode: u16,
+        first_arg: u16,
+        second_arg: u16,
+        third_arg: u16,
+    ) {
+        if mode == 0 {
+            // J__ &SRC, &SRCA, &JMP
+            let source = self.get_mem(first_arg);
+            let source_a = self.get_mem(second_arg);
+            if operation(&source, &source_a) {
+                let jump = self.get_mem(third_arg);
+                self.set_mem(Self::INSTRUCTION_PTR, jump);
+            }
+        } else if mode == 1 {
+            // J__ &SRC, &SRCA, #JMP
+            let source = self.get_mem(first_arg);
+            let source_a = self.get_mem(second_arg);
+            if operation(&source, &source_a) {
+                self.set_mem(Self::INSTRUCTION_PTR, third_arg);
+            }
+        } else if mode == 2 {
+            // J__ &SRC, #LIT, &JMP
+            let source = self.get_mem(first_arg);
+            if operation(&source, &second_arg) {
+                let jump = self.get_mem(third_arg);
+                self.set_mem(Self::INSTRUCTION_PTR, jump);
+            }
+        } else if mode == 3 {
+            // J__ &SRC, #LIT, #JMP
+            let source = self.get_mem(first_arg);
+            if operation(&source, &second_arg) {
+                self.set_mem(Self::INSTRUCTION_PTR, third_arg);
+            }
+        } else if mode == 4 {
+            // C__ &SRC, &SRCA, &DST
+            let source = self.get_mem(first_arg);
+            let source_a = self.get_mem(second_arg);
+            self.set_mem(third_arg, u16::from(operation(&source, &source_a)));
+        } else if mode == 5 {
+            // C__ &SRC, #LIT, &DST
+            let source = self.get_mem(first_arg);
+            self.set_mem(third_arg, u16::from(operation(&source, &second_arg)));
+        }
+    }
+
+    fn not_outer(&mut self, instruction_ptr: u16, nibbles: (u16, u16, u16, u16)) {
+        if nibbles.1 == 0 {
+            // NOT &SRC
+            self.not_instruction(nibbles.2, nibbles.2);
+            self.advance_instruction(1);
+        } else if nibbles.1 == 1 {
+            // NOT &SRC, &DEST
+            self.not_instruction(nibbles.2, nibbles.3);
+            self.advance_instruction(1);
+        } else if nibbles.1 == 2 {
+            // NOT &SRC | SRC
+            let source = self.get_mem(instruction_ptr + 1);
+            self.not_instruction(source, source);
+            self.advance_instruction(2);
+        } else if nibbles.1 == 3 {
+            // NOT &SRC, &DST | DST
+            let destination = self.get_mem(instruction_ptr + 1);
+            self.not_instruction(nibbles.2, destination);
+            self.advance_instruction(2);
+        } else if nibbles.1 == 4 {
+            // NOT &SRC, &DST | SRC
+            let source = self.get_mem(instruction_ptr + 1);
+            self.not_instruction(source, nibbles.2);
+            self.advance_instruction(2);
+        } else if nibbles.1 == 5 {
+            // NOT &SRC, &DST | SRC | DST
+            let source = self.get_mem(instruction_ptr + 1);
+            let destination = self.get_mem(instruction_ptr + 2);
+            self.not_instruction(source, destination);
+            self.advance_instruction(3);
         }
     }
 
@@ -289,4 +389,13 @@ impl Computer {
     pub fn advance_instruction(&mut self, value: u16) {
         self.add_mem(Self::INSTRUCTION_PTR, value);
     }
+}
+
+const fn u16_to_nibbles(instruction: u16) -> (u16, u16, u16, u16) {
+    (
+        instruction >> 12,
+        instruction >> 8 & 0xf,
+        instruction >> 4 & 0xf,
+        instruction & 0xf,
+    )
 }

@@ -24,13 +24,11 @@ first nibble: operation
 second nibble: mode
 
 - 0: &SRC, &DEST (&DEST += &SRC)
-- 0 (CMP): J__ &SRC, &SRCA, &DST (if &SRC > &SRCA)
 - 1: #LIT, &DEST (&DEST += #LIT)
-- 1 (CMP): J__ #LIT, &SRC, &DST (if #LIT > &SRC)
 - 2: &SRCA, &SRC, &DEST (&DEST = &SRCA + &SRC)
 - 3: #LIT, &SRC, &DEST (&DEST = &SRC + #LIT)
 - 4: &SRC, #LIT, &DEST (&DEST = #LIT + &SRC; only when order matters)
-- 5 (CMP): J__ &SRC, #LIT, &DST (if &SRC > #LIT)
+- 5: ?
 - 6: ?
 - 7: ?
 - 8: ?
@@ -79,3 +77,24 @@ second nibble: mode
 - 3: mode 1, third nibble is &SRC, &DST is another word
 - 4: mode 1, third nibble is &DST, &SRC is another word
 - 5: mode 1, &SRC and &DST are additional words
+
+### Comparisons
+
+second nibble: mode
+
+- 0: J__ &SRC, &SRCA, &JMP
+- 1: J__ &SRC, &SRCA, #JMP
+- 2: J__ &SRC, #LIT, &JMP
+- 3: J__ &SRC, #LIT, #JMP
+- 4: C__ &SRC, &SRCA, &DST
+- 5: C__ &SRC, #LIT, &DST
+- 6: ?
+- 7: ?
+- 8: ?
+- 9: ?
+- A: ?
+- B: ?
+- C: third nibble is mode, fourth nibble is first arg
+- D: third nibble is mode, fourth nibble is second arg
+- E: third nibble is mode, fourth nibble is third arg
+- F: third nibble is mode, fourth nibble unused
