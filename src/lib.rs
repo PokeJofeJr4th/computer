@@ -1,12 +1,18 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    ops::{BitAnd, BitOr, BitXor, Shl, Shr},
+};
 
 /// # Memory Layout
 /// ## Instruction Pointer
-/// 0x0000
+/// 0x0010
+/// ## Yield
+/// 0x0011
+/// set this register to `0x0001` to yield execution when using `Computer::until_yield()`
 /// ## General-Purpose Registers
-/// 0x0010 - 0x001F
+/// 0x0000 - 0x000F
 /// ## Screen Registers
 pub struct Computer {
     memory: [u16; 0x10000],
@@ -29,12 +35,20 @@ impl Debug for Computer {
 
 impl Computer {
     pub const INSTRUCTION_PTR: u16 = 0x0010;
+    pub const YIELD_REGISTER: u16 = 0x0011;
 
     #[must_use]
     pub const fn new() -> Self {
         Self {
             memory: [0; 0x10000],
         }
+    }
+
+    pub fn until_yield(&mut self) {
+        while self.get_mem(Self::YIELD_REGISTER) == 0 {
+            self.tick();
+        }
+        self.set_mem(Self::YIELD_REGISTER, 0);
     }
 
     pub fn tick(&mut self) {
@@ -52,8 +66,38 @@ impl Computer {
         if nibbles.0 == 0 {
             // MOV/JMP
             if nibbles.1 <= 8 {
+                self.advance_instruction(1);
                 self.mov_or_jmp(nibbles.1, nibbles.2, nibbles.3);
+            } else if nibbles.1 == 0xD {
+                let second_arg = self.get_mem(instruction_ptr + 1);
+                self.advance_instruction(2);
+                self.mov_or_jmp(nibbles.2, nibbles.3, second_arg);
+            } else if nibbles.1 == 0xE {
+                let first_arg = self.get_mem(instruction_ptr + 1);
+                self.advance_instruction(2);
+                self.mov_or_jmp(nibbles.2, first_arg, nibbles.3);
+            } else if nibbles.1 == 0xF {
+                let first_arg = self.get_mem(instruction_ptr + 1);
+                let second_arg = self.get_mem(instruction_ptr + 2);
+                self.advance_instruction(3);
+                self.mov_or_jmp(nibbles.2, first_arg, second_arg);
             }
+        } else if nibbles.0 == 1 {
+            self.math_op_outer(u16::wrapping_add, instruction_ptr, nibbles);
+        } else if nibbles.0 == 2 {
+            self.math_op_outer(u16::wrapping_sub, instruction_ptr, nibbles);
+        } else if nibbles.0 == 3 {
+            self.math_op_outer(u16::wrapping_mul, instruction_ptr, nibbles);
+        } else if nibbles.0 == 0xB {
+            self.math_op_outer(BitAnd::bitand, instruction_ptr, nibbles);
+        } else if nibbles.0 == 0xC {
+            self.math_op_outer(BitOr::bitor, instruction_ptr, nibbles);
+        } else if nibbles.0 == 0xD {
+            self.math_op_outer(BitXor::bitxor, instruction_ptr, nibbles);
+        } else if nibbles.0 == 0xE {
+            self.math_op_outer(Shl::shl, instruction_ptr, nibbles);
+        } else if nibbles.0 == 0xF {
+            self.math_op_outer(Shr::shr, instruction_ptr, nibbles);
         }
     }
 
@@ -98,6 +142,73 @@ impl Computer {
             }
         } else if mode == 8 {
             // JNZ &CMP #LIT
+            let comparison = self.get_mem(first_arg);
+            if comparison != 0 {
+                self.set_mem(Self::INSTRUCTION_PTR, second_arg);
+            }
+        }
+    }
+
+    fn math_op_outer<F: Fn(u16, u16) -> u16>(
+        &mut self,
+        operation: F,
+        instruction_ptr: u16,
+        nibbles: (u16, u16, u16, u16),
+    ) {
+        if nibbles.1 <= 4 {
+            let third_arg = if nibbles.1 >= 2 {
+                self.advance_instruction(2);
+                self.get_mem(instruction_ptr + 1)
+            } else {
+                self.advance_instruction(1);
+                0
+            };
+            self.math_op(operation, nibbles.1, nibbles.2, nibbles.3, third_arg);
+        } else if nibbles.1 == 0xC {
+            let second_arg = self.get_mem(instruction_ptr + 1);
+            self.advance_instruction(1);
+            let third_arg = if nibbles.1 >= 2 {
+                self.advance_instruction(1);
+                self.get_mem(instruction_ptr + 2)
+            } else {
+                0
+            };
+            self.math_op(operation, nibbles.2, nibbles.3, second_arg, third_arg);
+        } else if nibbles.1 == 0xD {
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            self.advance_instruction(1);
+            let third_arg = if nibbles.1 >= 2 {
+                self.advance_instruction(1);
+                self.get_mem(instruction_ptr + 2)
+            } else {
+                0
+            };
+            self.math_op(operation, nibbles.2, first_arg, nibbles.3, third_arg);
+        } else if nibbles.2 == 0xE {
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            let second_arg = self.get_mem(instruction_ptr + 2);
+            self.advance_instruction(2);
+            self.math_op(operation, nibbles.2, first_arg, second_arg, nibbles.3);
+        }
+    }
+
+    fn math_op<F: Fn(u16, u16) -> u16>(
+        &mut self,
+        operation: F,
+        mode: u16,
+        first_arg: u16,
+        second_arg: u16,
+        third_arg: u16,
+    ) {
+        if mode == 0 {
+            let source = self.get_mem(first_arg);
+            self.map_mem(second_arg, source, operation);
+        } else if mode == 1 {
+            self.map_mem(second_arg, first_arg, operation);
+        } else if mode == 2 {
+            let source_a = self.get_mem(first_arg);
+            let source = self.get_mem(second_arg);
+            self.set_mem(third_arg, operation(source_a, source));
         }
     }
 
@@ -116,6 +227,14 @@ impl Computer {
 
     pub fn add_mem(&mut self, idx: u16, value: u16) {
         self.memory[idx as usize] = self.memory[idx as usize].wrapping_add(value);
+    }
+
+    pub fn sub_mem(&mut self, idx: u16, value: u16) {
+        self.memory[idx as usize] = self.memory[idx as usize].wrapping_sub(value);
+    }
+
+    pub fn map_mem<F: Fn(u16, u16) -> u16>(&mut self, idx: u16, value: u16, func: F) {
+        self.memory[idx as usize] = func(self.memory[idx as usize], value);
     }
 
     pub fn advance_instruction(&mut self, value: u16) {

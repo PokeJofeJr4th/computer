@@ -18,8 +18,8 @@ first nibble: operation
 - B: AND
 - C: OR
 - D: XOR
-- E: ?
-- F: ?
+- E: SHL
+- F: SHR
 
 second nibble: mode
 
@@ -37,9 +37,9 @@ second nibble: mode
 - 9: ?
 - A: ?
 - B: ?
-- C: ?
-- D: third nibble is mode, fourth nibble is first arg
-- E: third nibble is mode, fourth nibble is second arg
+- C: third nibble is mode, fourth nibble is first arg
+- D: third nibble is mode, fourth nibble is second arg
+- E: third nibble is mode, fourth nibble is third arg
 - F: third nibble is mode, fourth nibble unused
 
 third nibble: first arg / fourth nibble: second arg
