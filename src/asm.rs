@@ -4,6 +4,7 @@ use strum::EnumString;
 mod instruction;
 
 #[derive(EnumString)]
+#[strum(ascii_case_insensitive)]
 enum Token {
     Mov,
     Swp,
