@@ -2,6 +2,7 @@ use std::str::FromStr;
 use strum::EnumString;
 
 mod instruction;
+mod syntax;
 
 #[derive(EnumString)]
 #[strum(ascii_case_insensitive)]
@@ -71,12 +72,8 @@ fn lex(src: &str) -> Option<Vec<Token>> {
         .collect()
 }
 
-fn interpret(_src: &[Token]) -> Option<Vec<u16>> {
-    todo!()
-}
-
 #[must_use]
 #[allow(clippy::module_name_repetitions)]
 pub fn compile_asm(src: &str) -> Option<Vec<u16>> {
-    interpret(&lex(src)?)
+    syntax::interpret(&lex(src)?)
 }

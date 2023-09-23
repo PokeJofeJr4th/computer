@@ -61,12 +61,7 @@ impl Instruction {
                     (lit @ 0..=0xF, dst @ 0..=0xF) => {
                         vec![(lit << 4) | dst]
                     }
-                    (lit , dst) => vec![
-                        0x0F00,
-                        lit,
-                        dst,
-                    ],
-
+                    (lit, dst) => vec![0x0F00, lit, dst],
                 }
             }
             _ => Vec::new(),

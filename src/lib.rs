@@ -51,7 +51,8 @@ impl Computer {
         }
     }
 
-    pub fn insert_data(&mut self, idx: usize, data: &[u16]) {
+    pub fn insert_data(&mut self, idx: impl Into<usize>, data: &[u16]) {
+        let idx = idx.into();
         for (word_idx, word) in data.iter().enumerate() {
             self.memory[idx + word_idx] = *word;
         }
