@@ -27,6 +27,12 @@ pub struct Computer {
 impl Debug for Computer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for x in 0..0x1000 {
+            if (0..0x10)
+                .map(|b| self.get_mem((x << 4) + b))
+                .all(|b| b == 0)
+            {
+                continue;
+            };
             write!(f, "{:0>4X}", x << 4)?;
             for b in 0..0x10 {
                 let idx = (x << 4) + b;
