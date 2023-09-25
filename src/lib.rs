@@ -76,6 +76,14 @@ impl Computer {
         self.set_mem(Self::YIELD_REGISTER, 0);
     }
 
+    pub fn debug_until_yield(&mut self) {
+        while self.get_mem(Self::YIELD_REGISTER) == 0 {
+            println!("{self:?}");
+            self.tick();
+        }
+        self.set_mem(Self::YIELD_REGISTER, 0);
+    }
+
     pub fn tick(&mut self) {
         let instruction_ptr = self.get_mem(Self::INSTRUCTION_PTR);
         if instruction_ptr == Self::INSTRUCTION_PTR {
