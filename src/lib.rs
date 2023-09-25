@@ -26,6 +26,7 @@ pub struct Computer {
 
 impl Debug for Computer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut last_displayed = 0;
         for x in 0..0x1000 {
             if (0..0x10)
                 .map(|b| self.get_mem((x << 4) + b))
@@ -33,6 +34,10 @@ impl Debug for Computer {
             {
                 continue;
             };
+            if x - last_displayed > 1 {
+                writeln!(f, "...")?;
+            }
+            last_displayed = x;
             write!(f, "{:0>4X}", x << 4)?;
             for b in 0..0x10 {
                 let idx = (x << 4) + b;
