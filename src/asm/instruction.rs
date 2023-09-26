@@ -1,3 +1,5 @@
+use crate::Computer;
+
 pub enum Instruction {
     Yield,
     MathBinary(MathOp, Item, Address),
@@ -54,7 +56,7 @@ impl Address {
 impl Instruction {
     pub fn to_machine_code(&self) -> Vec<u16> {
         match self {
-            Self::Yield => vec![0x0A00],
+            Self::Yield => vec![Computer::YIELD_INSTRUCTION],
             Self::Mov(Item::Literal(lit), dst) => {
                 let dst = dst.to_number();
                 match (*lit, dst) {

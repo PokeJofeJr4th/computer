@@ -20,7 +20,7 @@ fn prog() -> Computer {
             // loop through input
             // get_input: PROGRAM_LOCATION
             //   YIELD
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
             //   (exit loop on zero terminator)
             //   JEZ r0, &print_digit
             0x0D60,
@@ -83,7 +83,7 @@ fn prog() -> Computer {
             PROGRAM_LOCATION,
             // print_digit: PROGRAM_LOCATION + 0x27
             //   YIELD
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
             //   JEZ DIGIT_LOCATION, &print_lower (skip yield)
             0x0F60,
             DIGIT_LOCATION,
@@ -101,7 +101,7 @@ fn prog() -> Computer {
             PROGRAM_LOCATION + 0x27,
             // print_lower: PROGRAM_LOCATION + 0x33
             //   YIELD
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
             //   JEZ LOWER_LOCATION, &print_upper (skip yield)
             0x0F60,
             LOWER_LOCATION,
@@ -119,7 +119,7 @@ fn prog() -> Computer {
             PROGRAM_LOCATION + 0x33,
             // print_upper: PROGRAM_LOCATION + 0x3F
             //   YIELD
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
             //   JEZ UPPER_LOCATION, #finish
             0x0F60,
             UPPER_LOCATION,
@@ -139,7 +139,7 @@ fn prog() -> Computer {
             //   MOV #0, r0
             0x0100,
             //   YIELD
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
         ],
     );
     comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);

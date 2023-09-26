@@ -17,7 +17,7 @@ fn prog() -> Computer {
             // SWP &r0, &r1
             0x0201,
             // YIELD
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
             // JMP #_loop
             0x0E40,
             PROGRAM_LOCATION + 2,

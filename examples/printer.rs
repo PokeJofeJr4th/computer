@@ -13,7 +13,7 @@ fn prog() -> Computer {
             // MOV r0, rF
             0x000F,
             // YIELD,
-            0x0A00,
+            Computer::YIELD_INSTRUCTION,
             // ADD 1, r0
             0x1110,
             // JMP #_loop

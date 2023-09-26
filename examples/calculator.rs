@@ -77,6 +77,11 @@ fn program() -> Computer {
             // end: +26
             //   YIELD
             Computer::YIELD_INSTRUCTION,
+            //   MOV #0, r0
+            0x0100,
+            //   JMP #end
+            0x0F40,
+            PROGRAM_LOCATION + 0x26,
         ],
     );
     comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
@@ -86,7 +91,27 @@ fn program() -> Computer {
 fn main() {
     let mut comp = program();
 
-    println!("Enter a string to parse:");
+    println!("Enter the first number:");
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+
+    // input all the data
+    comp.until_yield();
+    println!("{comp:?}");
+    for k in input.chars() {
+        comp.set_mem(0x0000, k as u16);
+        comp.debug_until_yield();
+        println!("{k}\n{comp:?}");
+    }
+
+    // add null terminator
+    println!("Adding Null Terminator");
+    comp.set_mem(0x0000, 0x0000);
+    comp.debug_until_yield();
+    println!("{comp:?}");
+
+    println!("Enter the second number:");
 
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
