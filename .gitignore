@@ -1,2 +1,3 @@
 /target
+/examples/_local_*.rs
 Cargo.lock
