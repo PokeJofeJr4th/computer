@@ -51,14 +51,15 @@ fn program() -> Computer {
             0x0E02,
             // *OUTPUT_BUFFER: +16
             0xFFFF,
-            //   JLT r2, #ZERO, #end
+            //   JLT r2, #ZERO, #second_input
             0x6C32,
             ZERO,
+            // *SECOND_INPUT: +19
             PROGRAM_LOCATION + 0x26,
             //   JGT r2, #NINE, #end
             0x8C32,
             NINE,
-            PROGRAM_LOCATION + 0x26,
+            PROGRAM_LOCATION + 0x32,
             //   SUB #ZERO, r2
             0x2D12,
             ZERO,
@@ -74,14 +75,34 @@ fn program() -> Computer {
             //   JMP #parse_loop
             0x0F40,
             PROGRAM_LOCATION + 0x15,
-            // end: +26
+            // second_input: +26
+            //   MOV r0, rF
+            0x000F,
+            //   MOV #INPUT_BUFFER, *INPUT_BUFFER
+            0x0F10,
+            INPUT_BUFFER,
+            PROGRAM_LOCATION + 0xA,
+            //   MOV #math, *SECOND_INPUT
+            0x0F10,
+            PROGRAM_LOCATION + 0x2F,
+            PROGRAM_LOCATION + 0x19,
+            //   JMP #get_input
+            0x0E40,
+            PROGRAM_LOCATION,
+            // math: +2F
+            //   ADD rF, r0
+            0x10F0,
+            //   JMP #end
+            0x0E40,
+            PROGRAM_LOCATION,
+            // end: +32
             //   YIELD
             Computer::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x26,
+            PROGRAM_LOCATION + 0x32,
         ],
     );
     comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
