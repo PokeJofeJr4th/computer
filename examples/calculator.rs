@@ -101,7 +101,7 @@ fn program() -> Computer {
             Computer::YIELD_INSTRUCTION,
             //   JEZ r0, #end
             0x0D60,
-            PROGRAM_LOCATION + 0x4B,
+            PROGRAM_LOCATION + 0x4C,
             //   JEQ r0, #PLUS, #add
             0x4C30,
             PLUS,
@@ -140,17 +140,19 @@ fn program() -> Computer {
             PROGRAM_LOCATION + 0x45,
             //   MOV rF, r0
             0x00F0,
+            //   YIELD
+            Computer::YIELD_INSTRUCTION,
             //   JMP #second_input
             0x0E40,
             PROGRAM_LOCATION + 0x26,
-            // end: +4B
+            // end: +4C
             //   YIELD
             Computer::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x4B,
+            PROGRAM_LOCATION + 0x4C,
         ],
     );
     comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
@@ -162,7 +164,7 @@ fn program_input(comp: &mut Computer) {
     std::io::stdin().read_line(&mut input).unwrap();
 
     // input all the data
-    comp.until_yield();
+    comp.debug_until_yield();
     println!("{comp:?}");
     for k in input.chars() {
         comp.set_mem(0x0000, k as u16);
