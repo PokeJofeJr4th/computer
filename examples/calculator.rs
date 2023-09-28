@@ -7,6 +7,10 @@ const INPUT_BUFFER: u16 = 0xA000;
 const ZERO: u16 = 48;
 const NINE: u16 = 57;
 
+const PLUS: u16 = 43;
+const MINUS: u16 = 45;
+const STAR: u16 = 42;
+
 fn program() -> Computer {
     let mut comp = Computer::new();
     comp.insert_data(
@@ -90,68 +94,105 @@ fn program() -> Computer {
             0x0E40,
             PROGRAM_LOCATION,
             // math: +2F
-            //   ADD rF, r0
-            0x10F0,
-            //   JMP #end
+            //   MOV r0, rE
+            0x000E,
+            // math_loop: +30
+            //   YIELD
+            Computer::YIELD_INSTRUCTION,
+            //   JEZ r0, #end
+            0x0D60,
+            PROGRAM_LOCATION + 0x4B,
+            //   JEQ r0, #PLUS, #add
+            0x4C30,
+            PLUS,
+            PROGRAM_LOCATION + 0x3E,
+            //   JEQ r0, #MINUS, #sub
+            0x4C30,
+            MINUS,
+            PROGRAM_LOCATION + 0x41,
+            //   JEQ r0, #STAR, #mul
+            0x4C30,
+            STAR,
+            PROGRAM_LOCATION + 0x44,
+            //   JMP #math_loop
             0x0E40,
-            PROGRAM_LOCATION,
-            // end: +32
+            PROGRAM_LOCATION + 0x30,
+            // add: +3E
+            //   ADD rE, rF
+            0x10EF,
+            //   JMP #after_math
+            0x0E40,
+            PROGRAM_LOCATION + 0x45,
+            // sub: +41
+            //   SUB rE, rF
+            0x20EF,
+            //   JMP #after_math
+            0x0E40,
+            PROGRAM_LOCATION + 0x45,
+            // mul: +44
+            //   MUL rE, rF
+            0x30EF,
+            // after_math: +45
+            //   YIELD
+            Computer::YIELD_INSTRUCTION,
+            //   JNZ r0, #after_math
+            0x0D80,
+            PROGRAM_LOCATION + 0x45,
+            //   MOV rF, r0
+            0x00F0,
+            //   JMP #second_input
+            0x0E40,
+            PROGRAM_LOCATION + 0x26,
+            // end: +4B
             //   YIELD
             Computer::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x32,
+            PROGRAM_LOCATION + 0x4B,
         ],
     );
     comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
     comp
 }
 
+fn program_input(comp: &mut Computer) {
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+
+    // input all the data
+    comp.until_yield();
+    println!("{comp:?}");
+    for k in input.chars() {
+        comp.set_mem(0x0000, k as u16);
+        comp.debug_until_yield();
+        println!("{k}\n{comp:?}");
+    }
+
+    // add null terminator
+    println!("Adding Null Terminator");
+    comp.set_mem(0x0000, 0x0000);
+    comp.debug_until_yield();
+    println!("{comp:?}");
+}
+
 fn main() {
     let mut comp = program();
-
     println!("Enter the first number:");
 
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
+    program_input(&mut comp);
 
-    // input all the data
-    comp.until_yield();
-    println!("{comp:?}");
-    for k in input.chars() {
-        comp.set_mem(0x0000, k as u16);
-        comp.debug_until_yield();
-        println!("{k}\n{comp:?}");
+    loop {
+        println!("Enter the next number:");
+
+        program_input(&mut comp);
+
+        println!("Enter the operation:");
+
+        program_input(&mut comp);
+
+        // get the output
+        println!("{}", comp.get_mem(0x0000));
     }
-
-    // add null terminator
-    println!("Adding Null Terminator");
-    comp.set_mem(0x0000, 0x0000);
-    comp.debug_until_yield();
-    println!("{comp:?}");
-
-    println!("Enter the second number:");
-
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-
-    // input all the data
-    comp.until_yield();
-    println!("{comp:?}");
-    for k in input.chars() {
-        comp.set_mem(0x0000, k as u16);
-        comp.debug_until_yield();
-        println!("{k}\n{comp:?}");
-    }
-
-    // add null terminator
-    println!("Adding Null Terminator");
-    comp.set_mem(0x0000, 0x0000);
-    comp.debug_until_yield();
-    println!("{comp:?}");
-
-    // get the output
-    println!("{}", comp.get_mem(0x0000));
 }
