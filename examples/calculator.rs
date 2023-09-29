@@ -1,4 +1,4 @@
-use computer::Computer;
+use computer::{CPU, ComputerDebug, Computer};
 
 const PROGRAM_LOCATION: u16 = 0x8000;
 
@@ -11,14 +11,14 @@ const PLUS: u16 = 43;
 const MINUS: u16 = 45;
 const STAR: u16 = 42;
 
-fn program() -> Computer {
-    let mut comp = Computer::new();
+fn program() -> CPU {
+    let mut comp = CPU::new();
     comp.insert_data(
         PROGRAM_LOCATION,
         &[
             // get_input: +0
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             //   JEZ r0, #parse
             0x0D60,
             PROGRAM_LOCATION + 0xF,
@@ -98,7 +98,7 @@ fn program() -> Computer {
             0x000E,
             // math_loop: +30
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             //   JEZ r0, #end
             0x0D60,
             PROGRAM_LOCATION + 0x4C,
@@ -134,20 +134,20 @@ fn program() -> Computer {
             0x30EF,
             // after_math: +45
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             //   JNZ r0, #after_math
             0x0D80,
             PROGRAM_LOCATION + 0x45,
             //   MOV rF, r0
             0x00F0,
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             //   JMP #second_input
             0x0E40,
             PROGRAM_LOCATION + 0x26,
             // end: +4C
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
@@ -155,11 +155,11 @@ fn program() -> Computer {
             PROGRAM_LOCATION + 0x4C,
         ],
     );
-    comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
+    comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_LOCATION);
     comp
 }
 
-fn program_input(comp: &mut Computer) {
+fn program_input(comp: &mut CPU) {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
 

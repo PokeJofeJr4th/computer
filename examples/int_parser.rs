@@ -1,4 +1,4 @@
-use computer::Computer;
+use computer::{CPU, Computer, ComputerDebug};
 
 const PROGRAM_LOCATION: u16 = 0x8000;
 
@@ -7,14 +7,14 @@ const INPUT_BUFFER: u16 = 0xA000;
 const ZERO: u16 = 48;
 const NINE: u16 = 57;
 
-fn program() -> Computer {
-    let mut comp = Computer::new();
+fn program() -> CPU {
+    let mut comp = CPU::new();
     comp.insert_data(
         PROGRAM_LOCATION,
         &[
             // get_input: +0
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             //   JEZ r0, #parse
             0x0D60,
             PROGRAM_LOCATION + 0xF,
@@ -76,10 +76,10 @@ fn program() -> Computer {
             PROGRAM_LOCATION + 0x15,
             // end: +26
             //   YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
         ],
     );
-    comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
+    comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_LOCATION);
     comp
 }
 

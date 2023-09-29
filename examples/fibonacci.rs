@@ -1,9 +1,9 @@
-use computer::Computer;
+use computer::{CPU, Computer};
 
 const PROGRAM_LOCATION: u16 = 0x8000;
 
-fn prog() -> Computer {
-    let mut comp = Computer::new();
+fn prog() -> CPU {
+    let mut comp = CPU::new();
     comp.insert_data(
         PROGRAM_LOCATION,
         &[
@@ -17,7 +17,7 @@ fn prog() -> Computer {
             // SWP &r0, &r1
             0x0201,
             // YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             // JMP #_loop
             0x0E40,
             PROGRAM_LOCATION + 2,
@@ -30,7 +30,7 @@ fn main() {
     let mut comp = prog();
 
     // start running the program
-    comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_LOCATION);
+    comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_LOCATION);
     println!("{comp:?}");
 
     for _ in 0..20 {

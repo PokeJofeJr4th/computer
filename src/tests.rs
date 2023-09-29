@@ -1,11 +1,11 @@
-use crate::Computer;
+use crate::{CPU, Computer};
 
 const PROGRAM_POINTER: u16 = 0x8000;
 
 #[test]
 fn test_add_values() {
-    let mut comp = Computer::new();
-    comp.set_mem(Computer::INSTRUCTION_PTR, PROGRAM_POINTER);
+    let mut comp = CPU::new();
+    comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_POINTER);
 
     comp.insert_data(
         PROGRAM_POINTER as usize,
@@ -17,18 +17,18 @@ fn test_add_values() {
             0x8000,
             0x6000,
             // YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             // SWP &6000, r0
             0x0E20,
             0x6000,
             // YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
             // JEQ &6000 #001 #PROGRAM_POINTER
             0x4D31,
             0x6000,
             PROGRAM_POINTER,
             // YIELD
-            Computer::YIELD_INSTRUCTION,
+            CPU::YIELD_INSTRUCTION,
         ],
     );
 
