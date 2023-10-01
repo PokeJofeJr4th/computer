@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{BitAnd, BitOr, BitXor, Shl, Shr},
+    ops::{BitAnd, BitOr, BitXor},
 };
 
 use crate::{Computer, ComputerDebug};
@@ -168,10 +168,18 @@ impl CPU {
             self.math_op_outer(BitXor::bitxor, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xE {
             // SHL
-            self.math_op_outer(Shl::shl, instruction_ptr, nibbles);
+            self.math_op_outer(
+                |a, b| a.checked_shl(b.into()).unwrap_or_default(),
+                instruction_ptr,
+                nibbles,
+            );
         } else if nibbles.0 == 0xF {
             // SHR
-            self.math_op_outer(Shr::shr, instruction_ptr, nibbles);
+            self.math_op_outer(
+                |a, b| a.checked_shr(b.into()).unwrap_or_default(),
+                instruction_ptr,
+                nibbles,
+            );
         }
     }
 
