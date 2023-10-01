@@ -15,6 +15,8 @@ const PLUS: u16 = 43;
 const MINUS: u16 = 45;
 const STAR: u16 = 42;
 
+const CHAR_A: u16 = 65;
+
 fn program() -> ComputerIO<CPU> {
     let mut comp = ComputerIO::new(CPU::new());
     comp.insert_data(
@@ -88,7 +90,7 @@ fn program() -> ComputerIO<CPU> {
             //   JGT r2, #NINE, #end
             0x8C32,
             NINE,
-            PROGRAM_LOCATION + 0x69,
+            PROGRAM_LOCATION + 0x79,
             //   SUB #ZERO, r2
             0x2D12,
             ZERO,
@@ -186,19 +188,47 @@ fn program() -> ComputerIO<CPU> {
             PROGRAM_LOCATION + 0x62,
             //   MOV rF, r0
             0x00F0,
+            // print_output: +66
+            //   MOV #1, &SIGNAL_REGISTER
+            0x0C01,
+            ComputerIO::<CPU>::SIGNAL_REGISTER,
+            //   SHR #12, r0
+            0xF1C0,
+            //   CLT r0, #10, r1
+            0x6C50,
+            0x000A,
+            0x0001,
+            //   MOV #1, r2
+            0x0112,
+            //   SUB r1, r2
+            0x2012,
+            //   MUL #ZERO, r1
+            0x3D11,
+            ZERO,
+            //   MUL #CHAR_A, r2
+            0x3D12,
+            CHAR_A,
+            //   ADD r2, r0
+            0x1020,
+            //   ADD r1, r0
+            0x1010,
+            //   YIELD
+            CPU::YIELD_INSTRUCTION,
+            //   MOV #0, r0
+            0x0100,
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   JMP #second_input
             0x0E40,
             PROGRAM_LOCATION + 0x37,
-            // end: +69
+            // end: +79
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x69,
+            PROGRAM_LOCATION + 0x79,
         ],
     );
 
