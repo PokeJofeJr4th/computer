@@ -90,7 +90,7 @@ fn program() -> ComputerIO<CPU> {
             //   JGT r2, #NINE, #end
             0x8C32,
             NINE,
-            PROGRAM_LOCATION + 0x79,
+            PROGRAM_LOCATION + 0x80,
             //   SUB #ZERO, r2
             0x2D12,
             ZERO,
@@ -186,12 +186,17 @@ fn program() -> ComputerIO<CPU> {
             //   JNZ r0, #after_math
             0x0D80,
             PROGRAM_LOCATION + 0x62,
+            // print_output: +65
+            //   MOV #1, &SIGNAL_REGISTER
+            0x0D11,
+            ComputerIO::<CPU>::SIGNAL_REGISTER,
+            //   MOV #0, r3
+            0x0103,
+            // print_output_loop: +68
             //   MOV rF, r0
             0x00F0,
-            // print_output: +66
-            //   MOV #1, &SIGNAL_REGISTER
-            0x0C01,
-            ComputerIO::<CPU>::SIGNAL_REGISTER,
+            //   SHL r3, r0
+            0xE030,
             //   SHR #12, r0
             0xF1C0,
             //   CLT r0, #10, r1
@@ -205,30 +210,38 @@ fn program() -> ComputerIO<CPU> {
             //   MUL #ZERO, r1
             0x3D11,
             ZERO,
-            //   MUL #CHAR_A, r2
+            //   MUL #CHAR_A - 10, r2
             0x3D12,
-            CHAR_A,
+            CHAR_A - 10,
             //   ADD r2, r0
             0x1020,
             //   ADD r1, r0
             0x1010,
             //   YIELD
             CPU::YIELD_INSTRUCTION,
+            //   ADD #4, r3
+            0x1143,
+            //   JLT r3, #16, #print_output_loop
+            0x6C33,
+            0x0010,
+            PROGRAM_LOCATION + 0x68,
             //   MOV #0, r0
             0x0100,
             //   YIELD
             CPU::YIELD_INSTRUCTION,
+            //   MOV rF, r0
+            0x00F0,
             //   JMP #second_input
             0x0E40,
-            PROGRAM_LOCATION + 0x37,
-            // end: +79
+            PROGRAM_LOCATION + 0x34,
+            // end: +80
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x79,
+            PROGRAM_LOCATION + 0x80,
         ],
     );
 
