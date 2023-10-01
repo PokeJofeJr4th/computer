@@ -88,7 +88,7 @@ fn program() -> ComputerIO<CPU> {
             //   JGT r2, #NINE, #end
             0x8C32,
             NINE,
-            PROGRAM_LOCATION + 0x5F,
+            PROGRAM_LOCATION + 0x69,
             //   SUB #ZERO, r2
             0x2D12,
             ZERO,
@@ -125,7 +125,21 @@ fn program() -> ComputerIO<CPU> {
             // math: +40
             //   MOV r0, rE
             0x000E,
-            // math_loop: +41
+            //   MOV #1, &SIGNAL_REGISTER
+            0x0D11,
+            ComputerIO::<CPU>::SIGNAL_REGISTER,
+            //   MOV #OPERATION_BUFFER, *STRING_LOCATION
+            0x0F10,
+            OPERATION_BUFFER,
+            PRINT_LOCATION + 0x3,
+            //   MOV #math_loop, *CALLBACK_LOCATION
+            0x0F10,
+            PROGRAM_LOCATION + 0x4B,
+            PRINT_LOCATION + 0xA,
+            //   JMP #PRINT_LOCATION
+            0x0E40,
+            PRINT_LOCATION,
+            // math_loop: +4B
             //   MOV #2, &SIGNAL_REGISTER
             0x0D12,
             ComputerIO::<CPU>::SIGNAL_REGISTER,
@@ -137,39 +151,39 @@ fn program() -> ComputerIO<CPU> {
             //   JEQ r0, #PLUS, #add
             0x4C30,
             PLUS,
-            PROGRAM_LOCATION + 0x51,
+            PROGRAM_LOCATION + 0x5B,
             //   JEQ r0, #MINUS, #sub
             0x4C30,
             MINUS,
-            PROGRAM_LOCATION + 0x54,
+            PROGRAM_LOCATION + 0x5E,
             //   JEQ r0, #STAR, #mul
             0x4C30,
             STAR,
-            PROGRAM_LOCATION + 0x57,
+            PROGRAM_LOCATION + 0x61,
             //   JMP #math_loop
             0x0E40,
-            PROGRAM_LOCATION + 0x41,
-            // add: +51
+            PROGRAM_LOCATION + 0x4B,
+            // add: +5B
             //   ADD rE, rF
             0x10EF,
             //   JMP #after_math
             0x0E40,
-            PROGRAM_LOCATION + 0x58,
-            // sub: +54
+            PROGRAM_LOCATION + 0x62,
+            // sub: +5E
             //   SUB rE, rF
             0x20EF,
             //   JMP #after_math
             0x0E40,
             PROGRAM_LOCATION + 0x58,
-            // mul: +57
+            // mul: +61
             //   MUL rE, rF
             0x30EF,
-            // after_math: +58
+            // after_math: +62
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   JNZ r0, #after_math
             0x0D80,
-            PROGRAM_LOCATION + 0x58,
+            PROGRAM_LOCATION + 0x62,
             //   MOV rF, r0
             0x00F0,
             //   YIELD
@@ -177,14 +191,14 @@ fn program() -> ComputerIO<CPU> {
             //   JMP #second_input
             0x0E40,
             PROGRAM_LOCATION + 0x37,
-            // end: +5F
+            // end: +69
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x5F,
+            PROGRAM_LOCATION + 0x69,
         ],
     );
 
