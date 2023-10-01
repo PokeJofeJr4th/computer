@@ -5,6 +5,12 @@ pub trait Computer {
     fn until_yield(&mut self);
     fn set_mem(&mut self, idx: u16, value: u16);
     fn get_mem(&self, idx: u16) -> u16;
+    fn insert_string(&mut self, idx: impl Into<usize>, data: &str) {
+        self.insert_data(
+            idx,
+            &data.chars().map(|char| char as u16).collect::<Vec<_>>(),
+        );
+    }
 }
 
 #[allow(clippy::module_name_repetitions)]

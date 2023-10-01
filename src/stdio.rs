@@ -12,21 +12,20 @@ impl<CPU: ComputerDebug> Debug for ComputerIO<CPU> {
 }
 
 impl<CPU: Computer> ComputerIO<CPU> {
+    pub const SIGNAL_REGISTER: u16 = 0x0012;
+
     pub const fn new(comp: CPU) -> Self {
         Self(comp)
     }
 
     pub fn program_input(&mut self, input: impl Iterator<Item = u16>) {
         // input all the data
-        self.0.until_yield();
         for k in input {
             self.0.set_mem(0x0000, k);
             self.0.until_yield();
-            println!("{k}");
         }
 
         // add null terminator
-        println!("Adding Null Terminator");
         self.0.set_mem(0x0000, 0x0000);
         self.0.until_yield();
     }
@@ -48,8 +47,7 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
     fn until_yield(&mut self) {
         loop {
             self.0.until_yield();
-            match self.get_mem(0x0002) {
-                0 => return,
+            match self.get_mem(Self::SIGNAL_REGISTER) {
                 1 => {
                     let mut value = String::new();
                     loop {
@@ -57,7 +55,9 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
                             break;
                         }
                         value.push(u32::from(self.0.get_mem(0)).try_into().unwrap_or('_'));
+                        self.0.until_yield();
                     }
+                    self.set_mem(Self::SIGNAL_REGISTER, 0);
                     println!("{value}");
                 }
                 2 => {
@@ -71,8 +71,9 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
                             .map(Result::unwrap_or_default)
                             .take_while(|&x| x > 0),
                     );
+                    self.set_mem(Self::SIGNAL_REGISTER, 0);
                 }
-                _ => {}
+                _ => return,
             }
         }
     }
@@ -81,7 +82,6 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
 impl<CPU: ComputerDebug> ComputerIO<CPU> {
     pub fn program_input_debug(&mut self, input: impl Iterator<Item = u16>) {
         // input all the data
-        self.0.debug_until_yield();
         for k in input {
             self.0.set_mem(0x0000, k);
             self.0.debug_until_yield();
@@ -92,5 +92,41 @@ impl<CPU: ComputerDebug> ComputerIO<CPU> {
         println!("Adding Null Terminator");
         self.0.set_mem(0x0000, 0x0000);
         self.0.debug_until_yield();
+    }
+}
+
+impl<CPU: ComputerDebug> ComputerDebug for ComputerIO<CPU> {
+    fn debug_until_yield(&mut self) {
+        loop {
+            self.0.debug_until_yield();
+            match self.get_mem(Self::SIGNAL_REGISTER) {
+                1 => {
+                    let mut value = String::new();
+                    loop {
+                        if self.0.get_mem(0) == 0 {
+                            break;
+                        }
+                        value.push(u32::from(self.0.get_mem(0)).try_into().unwrap_or('_'));
+                        self.0.debug_until_yield();
+                    }
+                    self.set_mem(Self::SIGNAL_REGISTER, 0);
+                    println!("{value}");
+                }
+                2 => {
+                    let mut value = String::new();
+                    std::io::stdin().read_line(&mut value).unwrap();
+                    self.program_input_debug(
+                        value
+                            .chars()
+                            .map(u32::from)
+                            .map(u16::try_from)
+                            .map(Result::unwrap_or_default)
+                            .take_while(|&x| x > 0),
+                    );
+                    self.set_mem(Self::SIGNAL_REGISTER, 0);
+                }
+                _ => return,
+            }
+        }
     }
 }
