@@ -43,15 +43,15 @@ fn program() -> ComputerIO<CPU> {
             CPU::YIELD_INSTRUCTION,
             //   JEZ r0, #parse
             0x0D60,
-            PROGRAM_LOCATION + 0x13,
-            //   JLT r0, #ZERO, #get_input
+            PROGRAM_LOCATION + 0x1B,
+            //   JLT r0, #ZERO, #read_input
             0x6C30,
             ZERO,
-            PROGRAM_LOCATION,
-            //   JGT r0, #NINE, #get_input
+            PROGRAM_LOCATION + 0xA + 2,
+            //   JGT r0, #NINE, #read_input
             0x8C30,
             NINE,
-            PROGRAM_LOCATION,
+            PROGRAM_LOCATION + 0xA + 2,
             //   MOV r0, INPUT_BUFFER
             0x0D00,
             // *INPUT_BUFFER: +16
@@ -59,9 +59,9 @@ fn program() -> ComputerIO<CPU> {
             //   ADD #1, *INPUT_BUFFER
             0x1C11,
             PROGRAM_LOCATION + 0x16,
-            //   JMP #get_input
+            //   JMP #read_input
             0x0F40,
-            PROGRAM_LOCATION,
+            PROGRAM_LOCATION + 0xA + 2,
             // parse: +1B
             //   MOV #1, r1
             0x0111,
@@ -77,15 +77,18 @@ fn program() -> ComputerIO<CPU> {
             0x0E02,
             // *OUTPUT_BUFFER: +22
             0xFFFF,
-            //   JLT r2, #ZERO, #second_input
+            //   JEZ r2, #second_input
+            0x0D62,
+            // *SECOND_INPUT: +24
+            PROGRAM_LOCATION + 0x34,
+            //   JLT r2, #ZERO, #parse_loop
             0x6C32,
             ZERO,
-            // *SECOND_INPUT: +25
-            PROGRAM_LOCATION + 0x32,
+            PROGRAM_LOCATION + 0x21,
             //   JGT r2, #NINE, #end
             0x8C32,
             NINE,
-            PROGRAM_LOCATION + 0x5D,
+            PROGRAM_LOCATION + 0x5F,
             //   SUB #ZERO, r2
             0x2D12,
             ZERO,
@@ -101,7 +104,7 @@ fn program() -> ComputerIO<CPU> {
             //   JMP #parse_loop
             0x0F40,
             PROGRAM_LOCATION + 0x21,
-            // second_input: +32
+            // second_input: +34
             //   MOV r0, rF
             0x000F,
             //   MOV #INPUT_BUFFER, *INPUT_BUFFER
@@ -110,8 +113,8 @@ fn program() -> ComputerIO<CPU> {
             PROGRAM_LOCATION + 0x16,
             //   MOV #math, *SECOND_INPUT
             0x0F10,
-            PROGRAM_LOCATION + 0x3B,
-            PROGRAM_LOCATION + 0x25,
+            PROGRAM_LOCATION + 0x40,
+            PROGRAM_LOCATION + 0x24,
             //   MOV #SECOND_NUMBER_BUFFER, *FIRST_NUMBER_BUFFER
             0x0F10,
             SECOND_NUMBER_BUFFER,
@@ -119,10 +122,10 @@ fn program() -> ComputerIO<CPU> {
             //   JMP #get_input
             0x0E40,
             PROGRAM_LOCATION,
-            // math: +3E
+            // math: +40
             //   MOV r0, rE
             0x000E,
-            // math_loop: +3F
+            // math_loop: +41
             //   MOV #2, &SIGNAL_REGISTER
             0x0D12,
             ComputerIO::<CPU>::SIGNAL_REGISTER,
@@ -130,58 +133,58 @@ fn program() -> ComputerIO<CPU> {
             CPU::YIELD_INSTRUCTION,
             //   JEZ r0, #end
             0x0D60,
-            PROGRAM_LOCATION + 0x5D,
+            PROGRAM_LOCATION + 0x5F,
             //   JEQ r0, #PLUS, #add
             0x4C30,
             PLUS,
-            PROGRAM_LOCATION + 0x4F,
+            PROGRAM_LOCATION + 0x51,
             //   JEQ r0, #MINUS, #sub
             0x4C30,
             MINUS,
-            PROGRAM_LOCATION + 0x52,
+            PROGRAM_LOCATION + 0x54,
             //   JEQ r0, #STAR, #mul
             0x4C30,
             STAR,
-            PROGRAM_LOCATION + 0x55,
+            PROGRAM_LOCATION + 0x57,
             //   JMP #math_loop
             0x0E40,
-            PROGRAM_LOCATION + 0x3F,
-            // add: +4F
+            PROGRAM_LOCATION + 0x41,
+            // add: +51
             //   ADD rE, rF
             0x10EF,
             //   JMP #after_math
             0x0E40,
-            PROGRAM_LOCATION + 0x56,
-            // sub: +52
+            PROGRAM_LOCATION + 0x58,
+            // sub: +54
             //   SUB rE, rF
             0x20EF,
             //   JMP #after_math
             0x0E40,
-            PROGRAM_LOCATION + 0x56,
-            // mul: +55
+            PROGRAM_LOCATION + 0x58,
+            // mul: +57
             //   MUL rE, rF
             0x30EF,
-            // after_math: +56
+            // after_math: +58
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   JNZ r0, #after_math
             0x0D80,
-            PROGRAM_LOCATION + 0x56,
+            PROGRAM_LOCATION + 0x58,
             //   MOV rF, r0
             0x00F0,
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   JMP #second_input
             0x0E40,
-            PROGRAM_LOCATION + 0x35,
-            // end: +5D
+            PROGRAM_LOCATION + 0x37,
+            // end: +5F
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x5D,
+            PROGRAM_LOCATION + 0x5F,
         ],
     );
 
@@ -222,4 +225,5 @@ fn main() {
     let mut comp = program();
     // comp.debug_until_yield();
     comp.until_yield();
+    println!("{}", comp.get_mem(0));
 }

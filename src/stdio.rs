@@ -27,7 +27,7 @@ impl<CPU: Computer> ComputerIO<CPU> {
 
         // add null terminator
         self.0.set_mem(0x0000, 0x0000);
-        self.0.until_yield();
+        // self.0.until_yield();
     }
 }
 
@@ -47,7 +47,7 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
     fn until_yield(&mut self) {
         loop {
             self.0.until_yield();
-            match self.get_mem(Self::SIGNAL_REGISTER) {
+            match self.0.get_mem(Self::SIGNAL_REGISTER) {
                 1 => {
                     let mut value = String::new();
                     loop {
@@ -57,7 +57,7 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
                         value.push(u32::from(self.0.get_mem(0)).try_into().unwrap_or('_'));
                         self.0.until_yield();
                     }
-                    self.set_mem(Self::SIGNAL_REGISTER, 0);
+                    self.0.set_mem(Self::SIGNAL_REGISTER, 0);
                     println!("{value}");
                 }
                 2 => {
@@ -71,7 +71,7 @@ impl<CPU: Computer> Computer for ComputerIO<CPU> {
                             .map(Result::unwrap_or_default)
                             .take_while(|&x| x > 0),
                     );
-                    self.set_mem(Self::SIGNAL_REGISTER, 0);
+                    self.0.set_mem(Self::SIGNAL_REGISTER, 0);
                 }
                 _ => return,
             }
@@ -85,13 +85,13 @@ impl<CPU: ComputerDebug> ComputerIO<CPU> {
         for k in input {
             self.0.set_mem(0x0000, k);
             self.0.debug_until_yield();
-            println!("{k}\n{self:?}");
+            println!("{k:0>4X}\n{self:?}");
         }
 
         // add null terminator
         println!("Adding Null Terminator");
         self.0.set_mem(0x0000, 0x0000);
-        self.0.debug_until_yield();
+        // self.0.debug_until_yield();
     }
 }
 
@@ -99,7 +99,7 @@ impl<CPU: ComputerDebug> ComputerDebug for ComputerIO<CPU> {
     fn debug_until_yield(&mut self) {
         loop {
             self.0.debug_until_yield();
-            match self.get_mem(Self::SIGNAL_REGISTER) {
+            match self.0.get_mem(Self::SIGNAL_REGISTER) {
                 1 => {
                     let mut value = String::new();
                     loop {
@@ -109,7 +109,7 @@ impl<CPU: ComputerDebug> ComputerDebug for ComputerIO<CPU> {
                         value.push(u32::from(self.0.get_mem(0)).try_into().unwrap_or('_'));
                         self.0.debug_until_yield();
                     }
-                    self.set_mem(Self::SIGNAL_REGISTER, 0);
+                    self.0.set_mem(Self::SIGNAL_REGISTER, 0);
                     println!("{value}");
                 }
                 2 => {
@@ -119,11 +119,10 @@ impl<CPU: ComputerDebug> ComputerDebug for ComputerIO<CPU> {
                         value
                             .chars()
                             .map(u32::from)
-                            .map(u16::try_from)
-                            .map(Result::unwrap_or_default)
-                            .take_while(|&x| x > 0),
+                            .flat_map(u16::try_from)
+                            .take_while(|&x| x != 0),
                     );
-                    self.set_mem(Self::SIGNAL_REGISTER, 0);
+                    self.0.set_mem(Self::SIGNAL_REGISTER, 0);
                 }
                 _ => return,
             }
