@@ -1,4 +1,4 @@
-use computer::{CPU, ComputerDebug, Computer};
+use computer::{Computer, ComputerDebug, CPU};
 
 const PROGRAM_LOCATION: u16 = 0x8000;
 

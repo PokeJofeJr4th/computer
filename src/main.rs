@@ -3,7 +3,7 @@
 use std::fs;
 
 use clap::{Parser, Subcommand};
-use computer::{compile_asm, Computer, CPU, ComputerIO, ComputerDebug};
+use computer::{compile_asm, Computer, ComputerDebug, ComputerIO, CPU};
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -58,7 +58,8 @@ fn main() {
                 asm.into_iter()
                     .flat_map(|b| vec![(b >> 8) as u8, b as u8])
                     .collect::<Vec<u8>>(),
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 }

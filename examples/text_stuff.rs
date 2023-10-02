@@ -1,4 +1,4 @@
-use computer::{CPU, Computer};
+use computer::{Computer, CPU};
 
 const PROGRAM_LOCATION: u16 = 0x8000;
 const LOWER_LOCATION: u16 = 0xA000;

@@ -1,4 +1,4 @@
-use crate::{CPU, Computer};
+use crate::{Computer, CPU};
 
 const PROGRAM_POINTER: u16 = 0x8000;
 

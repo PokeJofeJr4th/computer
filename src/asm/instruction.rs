@@ -86,20 +86,18 @@ impl Instruction {
     pub fn to_machine_code(&self) -> Vec<u16> {
         match self {
             Self::Yield => vec![CPU::YIELD_INSTRUCTION],
-            Self::Mov(Item::Literal(lit), dst) => {
-                match (lit.to_number(), dst.to_number()) {
-                    (lit @ 0..=0xF, dst @ 0..=0xF) => {
-                        vec![0x0100 | (lit << 4) | dst]
-                    }
-                    (lit, dst @ 0..=0xF) => {
-                        vec![0x0E10 | dst, lit]
-                    }
-                    (lit @ 0..=0xF, dst) => {
-                        vec![0x0D10 | lit, dst]
-                    }
-                    (lit, dst) => vec![0x0F00, lit, dst],
+            Self::Mov(Item::Literal(lit), dst) => match (lit.to_number(), dst.to_number()) {
+                (lit @ 0..=0xF, dst @ 0..=0xF) => {
+                    vec![0x0100 | (lit << 4) | dst]
                 }
-            }
+                (lit, dst @ 0..=0xF) => {
+                    vec![0x0E10 | dst, lit]
+                }
+                (lit @ 0..=0xF, dst) => {
+                    vec![0x0D10 | lit, dst]
+                }
+                (lit, dst) => vec![0x0F00, lit, dst],
+            },
             Self::Mov(Item::Address(src), dst) => {
                 let src = src.to_number();
                 let dst = dst.to_number();
