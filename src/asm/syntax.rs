@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use crate::utils::print_and_ret;
+use crate::{asm::instruction::CmpOp, utils::print_and_ret};
 
 use super::{
-    instruction::{Instruction, Item},
+    instruction::{Instruction, Item, MathOp, Value},
     Keyword, Token,
 };
 
@@ -42,16 +42,17 @@ pub(super) fn interpret(src: &[Token]) -> Option<Vec<u16>> {
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
     match src {
         [] => Some(Vec::new()),
         [Token::Keyword(Keyword::Yield), Token::SemiColon, rest @ ..] => Some(add_vecs(
             print_and_ret(vec![Syntax::Instruction(Instruction::Yield)]),
-            (interpret_tokens(rest)?),
+            interpret_tokens(rest)?,
         )),
         [Token::Label(label), rest @ ..] => Some(add_vecs(
             print_and_ret(vec![Syntax::Label(label.clone())]),
-            (interpret_tokens(rest)?),
+            interpret_tokens(rest)?,
         )),
         [Token::Keyword(Keyword::Mov), Token::Literal(lit), Token::Address(addr), Token::SemiColon, rest @ ..] => {
             Some(add_vecs(
@@ -59,7 +60,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                     Item::Literal(lit.clone()),
                     addr.clone(),
                 ))]),
-                (interpret_tokens(rest)?),
+                interpret_tokens(rest)?,
             ))
         }
         [Token::Keyword(Keyword::Mov), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
@@ -68,7 +69,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                     Item::Address(src.clone()),
                     dst.clone(),
                 ))]),
-                (interpret_tokens(rest)?),
+                interpret_tokens(rest)?,
             ))
         }
         [Token::Keyword(Keyword::Jmp), Token::Literal(lit), Token::SemiColon, rest @ ..] => {
@@ -79,16 +80,47 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 interpret_tokens(rest)?,
             ))
         }
-        [math_op @ Token::Keyword(
-            Keyword::Add
+        [Token::Keyword(
+            math_op @ (Keyword::Add
             | Keyword::Sub
             | Keyword::Mul
             | Keyword::And
             | Keyword::Or
             | Keyword::Xor
             | Keyword::Shl
-            | Keyword::Shr,
-        )] => todo!(),
+            | Keyword::Shr),
+        ), src @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] =>
+        {
+            let math_op = MathOp::try_from(*math_op).unwrap();
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::MathBinary(
+                    math_op,
+                    Item::from_token(src.clone()).unwrap(),
+                    dst.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [Token::Keyword(
+            cmp_op @ (Keyword::Jeq
+            | Keyword::Jne
+            | Keyword::Jlt
+            | Keyword::Jle
+            | Keyword::Jgt
+            | Keyword::Jge),
+        ), Token::Address(src), src_a @ (Token::Address(_) | Token::Literal(_)), jmp @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] =>
+        {
+            let cmp_op = CmpOp::try_from(*cmp_op).unwrap();
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::JmpCmp(
+                    cmp_op,
+                    src.clone(),
+                    Item::from_token(src_a.clone()).unwrap(),
+                    Item::from_token(jmp.clone()).unwrap(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
         _ => None,
     }
 }

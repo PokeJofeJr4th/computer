@@ -6,9 +6,9 @@ use self::instruction::Value;
 mod instruction;
 mod syntax;
 
-#[derive(EnumString, Debug)]
+#[derive(EnumString, Debug, Clone, Copy)]
 #[strum(ascii_case_insensitive)]
-enum Keyword {
+pub enum Keyword {
     Mov,
     Swp,
     Jmp,
@@ -38,8 +38,8 @@ enum Keyword {
     Yield,
 }
 
-#[derive(Debug)]
-enum Token {
+#[derive(Debug, Clone)]
+pub enum Token {
     Keyword(Keyword),
     Literal(Value),
     Address(Value),
