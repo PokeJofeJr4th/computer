@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use super::{instruction::Instruction, Token};
+use super::{
+    instruction::{Instruction, Item},
+    Keyword, Token,
+};
 
 pub enum Syntax {
     Label(String),
@@ -28,7 +31,7 @@ pub(super) fn interpret(src: &[Token]) -> Option<Vec<u16>> {
 
 fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
     match src {
-        [Token::Yield, Token::SemiColon, rest @ ..] => Some(add_vecs(
+        [Token::Keyword(Keyword::Yield), Token::SemiColon, rest @ ..] => Some(add_vecs(
             vec![Syntax::Instruction(Instruction::Yield)],
             interpret_tokens(rest)?,
         )),
@@ -36,11 +39,39 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
             vec![Syntax::Label(label.clone())],
             interpret_tokens(rest)?,
         )),
+        [Token::Keyword(Keyword::Mov), Token::Literal(lit), Token::Address(addr), Token::SemiColon, rest @ ..] => {
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::Mov(
+                    Item::Literal(*lit),
+                    addr.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [Token::Keyword(Keyword::Mov), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::Mov(
+                    Item::Address(src.clone()),
+                    dst.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [math_op @ Token::Keyword(
+            Keyword::Add
+            | Keyword::Sub
+            | Keyword::Mul
+            | Keyword::And
+            | Keyword::Or
+            | Keyword::Xor
+            | Keyword::Shl
+            | Keyword::Shr,
+        )] => todo!(),
         _ => None,
     }
 }
 
-fn add_vecs<T>(mut a: Vec<T>, b: Vec<T>) -> Vec<T> {
+fn add_vecs<T>(mut a: Vec<T>, b: impl IntoIterator<Item = T>) -> Vec<T> {
     a.extend(b);
     a
 }

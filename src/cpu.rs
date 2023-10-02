@@ -13,7 +13,6 @@ use crate::{Computer, ComputerDebug};
 /// set this register to `0x0001` to yield execution when using `Computer::until_yield()`
 /// ## General-Purpose Registers
 /// 0x0000 - 0x000F
-/// ## Screen Registers
 pub struct CPU {
     memory: [u16; 0x10000],
 }
