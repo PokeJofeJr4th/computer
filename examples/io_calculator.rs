@@ -5,8 +5,9 @@ const PRINT_LOCATION: u16 = 0x8800;
 
 const INPUT_BUFFER: u16 = 0xA000;
 const FIRST_NUMBER_BUFFER: u16 = 0xB000;
-const SECOND_NUMBER_BUFFER: u16 = 0xB100;
-const OPERATION_BUFFER: u16 = 0xB200;
+const SECOND_NUMBER_BUFFER: u16 = 0xB080;
+const OPERATION_BUFFER: u16 = 0xB100;
+const POWERS_OF_TEN: u16 = 0xB180;
 
 const ZERO: u16 = 48;
 const NINE: u16 = 57;
@@ -14,8 +15,6 @@ const NINE: u16 = 57;
 const PLUS: u16 = 43;
 const MINUS: u16 = 45;
 const STAR: u16 = 42;
-
-const CHAR_A: u16 = 65;
 
 fn program() -> ComputerIO<CPU> {
     let mut comp = ComputerIO::new(CPU::new());
@@ -90,7 +89,7 @@ fn program() -> ComputerIO<CPU> {
             //   JGT r2, #NINE, #end
             0x8C32,
             NINE,
-            PROGRAM_LOCATION + 0x80,
+            PROGRAM_LOCATION + 0x81,
             //   SUB #ZERO, r2
             0x2D12,
             ZERO,
@@ -190,41 +189,41 @@ fn program() -> ComputerIO<CPU> {
             //   MOV #1, &SIGNAL_REGISTER
             0x0D11,
             ComputerIO::<CPU>::SIGNAL_REGISTER,
-            //   MOV #0, r3
-            0x0103,
-            // print_output_loop: +68
-            //   MOV rF, r0
-            0x00F0,
-            //   SHL r3, r0
-            0xE030,
-            //   SHR #12, r0
-            0xF1C0,
-            //   CLT r0, #10, r1
-            0x6C50,
-            0x000A,
-            0x0001,
-            //   MOV #1, r2
-            0x0112,
+            //   MOV rF, r2
+            0x00F2,
+            //   MOV #POW_10, *POW_10
+            0x0F10,
+            POWERS_OF_TEN,
+            PROGRAM_LOCATION + 0x6C,
+            // print_output_loop: +6B
+            //   MOV &POW_10, r1
+            0x0E01,
+            //     *POW_10: +6C
+            POWERS_OF_TEN,
+            //   ADD #1, *POW_10
+            0x1C11,
+            PROGRAM_LOCATION + 0x6C,
+            //   MOV #ZERO, r0
+            0x0E10,
+            ZERO,
+            // digit_loop: +71
+            //   JLT r2, r1, #after_digit
+            0x6121,
+            PROGRAM_LOCATION + 0x77,
             //   SUB r1, r2
             0x2012,
-            //   MUL #ZERO, r1
-            0x3D11,
-            ZERO,
-            //   MUL #CHAR_A - 10, r2
-            0x3D12,
-            CHAR_A - 10,
-            //   ADD r2, r0
-            0x1020,
-            //   ADD r1, r0
-            0x1010,
+            //   ADD #1, r0
+            0x1110,
+            //   JLE r1, r2, #digit_loop
+            0x7112,
+            PROGRAM_LOCATION + 0x71,
+            // after_digit: +77
             //   YIELD
             CPU::YIELD_INSTRUCTION,
-            //   ADD #4, r3
-            0x1143,
-            //   JLT r3, #16, #print_output_loop
-            0x6C33,
-            0x0010,
-            PROGRAM_LOCATION + 0x68,
+            //   JGT r1, #1, #print_output_loop
+            0x8C31,
+            0x0001,
+            PROGRAM_LOCATION + 0x6B,
             //   MOV #0, r0
             0x0100,
             //   YIELD
@@ -234,14 +233,14 @@ fn program() -> ComputerIO<CPU> {
             //   JMP #second_input
             0x0E40,
             PROGRAM_LOCATION + 0x34,
-            // end: +80
+            // end: +81
             //   YIELD
             CPU::YIELD_INSTRUCTION,
             //   MOV #0, r0
             0x0100,
             //   JMP #end
             0x0F40,
-            PROGRAM_LOCATION + 0x80,
+            PROGRAM_LOCATION + 0x81,
         ],
     );
 
@@ -274,7 +273,11 @@ fn program() -> ComputerIO<CPU> {
     comp.insert_string(FIRST_NUMBER_BUFFER, "Enter the first number:");
     comp.insert_string(SECOND_NUMBER_BUFFER, "Enter the next number:");
     comp.insert_string(OPERATION_BUFFER, "Enter the operation (+, -, or *):");
+
+    comp.insert_data(POWERS_OF_TEN, &[10_000, 1_000, 100, 10, 1]);
+
     comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_LOCATION);
+
     comp
 }
 
@@ -282,5 +285,5 @@ fn main() {
     let mut comp = program();
     // comp.debug_until_yield();
     comp.until_yield();
-    println!("{}", comp.get_mem(0));
+    // println!("{}", comp.get_mem(0));
 }

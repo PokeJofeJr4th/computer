@@ -1,0 +1,8 @@
+Enter the first number:
+Enter the next number:
+Enter the operation (+, -, or *):
+00002
+Enter the next number:
+Enter the operation (+, -, or *):
+65535
+Enter the next number:
