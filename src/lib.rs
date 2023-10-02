@@ -6,6 +6,7 @@ mod cpu;
 mod stdio;
 #[cfg(test)]
 mod tests;
+mod utils;
 
 pub use asm::compile_asm;
 pub use computer::{Computer, ComputerDebug};

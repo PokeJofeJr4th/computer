@@ -1,12 +1,12 @@
 use std::str::FromStr;
 use strum::EnumString;
 
-use self::instruction::Address;
+use self::instruction::Value;
 
 mod instruction;
 mod syntax;
 
-#[derive(EnumString)]
+#[derive(EnumString, Debug)]
 #[strum(ascii_case_insensitive)]
 enum Keyword {
     Mov,
@@ -38,10 +38,11 @@ enum Keyword {
     Yield,
 }
 
+#[derive(Debug)]
 enum Token {
     Keyword(Keyword),
-    Literal(u16),
-    Address(Address),
+    Literal(Value),
+    Address(Value),
     Label(String),
     SemiColon,
 }
@@ -63,14 +64,22 @@ fn lex(src: &str) -> Option<Vec<Token>> {
                                             || Keyword::from_str(str).ok().map(Token::Keyword),
                                             |str| {
                                                 u16::from_str_radix(str, 16)
+                                                    .map(Value::Given)
                                                     .map(Token::Literal)
-                                                    .ok()
+                                                    .map_or_else(
+                                                        |_| {
+                                                            Some(Token::Literal(Value::Label(
+                                                                String::from(str),
+                                                            )))
+                                                        },
+                                                        Some,
+                                                    )
                                             },
                                         )
                                     },
                                     |str| {
                                         u16::from_str_radix(str, 16)
-                                            .map(Address::Given)
+                                            .map(Value::Given)
                                             .map(Token::Address)
                                             .ok()
                                     },
@@ -78,10 +87,10 @@ fn lex(src: &str) -> Option<Vec<Token>> {
                             },
                             |str| {
                                 u16::from_str_radix(str, 16)
-                                    .map(Address::Given)
+                                    .map(Value::Given)
                                     .map(Token::Address)
                                     .map_or_else(
-                                        |_| Some(Token::Address(Address::Label(String::from(str)))),
+                                        |_| Some(Token::Address(Value::Label(String::from(str)))),
                                         Some,
                                     )
                             },
@@ -106,5 +115,7 @@ fn lex(src: &str) -> Option<Vec<Token>> {
 #[must_use]
 #[allow(clippy::module_name_repetitions)]
 pub fn compile_asm(src: &str) -> Option<Vec<u16>> {
-    syntax::interpret(&lex(src)?)
+    let toks = lex(src)?;
+    println!("{toks:?}");
+    syntax::interpret(&toks)
 }
