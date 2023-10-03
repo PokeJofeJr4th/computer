@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{asm::instruction::CmpOp, utils::print_and_ret};
 
 use super::{
-    instruction::{Instruction, Item, MathOp, Value},
+    instruction::{Instruction, Item, MathOp},
     Keyword, Token,
 };
 
@@ -23,7 +23,7 @@ pub(super) fn interpret(src: &[Token]) -> Option<Vec<u16>> {
     for statement in &statements {
         match statement {
             Syntax::Label(label) => {
-                labels.insert(label.clone(), byte_location);
+                labels.insert(label.clone(), byte_location as u16);
             }
             Syntax::Instruction(instruction) => {
                 byte_location += instruction.to_machine_code().len();
@@ -54,20 +54,11 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
             print_and_ret(vec![Syntax::Label(label.clone())]),
             interpret_tokens(rest)?,
         )),
-        [Token::Keyword(Keyword::Mov), Token::Literal(lit), Token::Address(addr), Token::SemiColon, rest @ ..] => {
+        [Token::Keyword(Keyword::Mov), src @ (Token::Literal(_) | Token::Address(_)), Token::Address(addr), Token::SemiColon, rest @ ..] => {
             Some(add_vecs(
                 print_and_ret(vec![Syntax::Instruction(Instruction::Mov(
-                    Item::Literal(lit.clone()),
+                    Item::try_from(src.clone()).unwrap(),
                     addr.clone(),
-                ))]),
-                interpret_tokens(rest)?,
-            ))
-        }
-        [Token::Keyword(Keyword::Mov), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
-                print_and_ret(vec![Syntax::Instruction(Instruction::Mov(
-                    Item::Address(src.clone()),
-                    dst.clone(),
                 ))]),
                 interpret_tokens(rest)?,
             ))
@@ -95,7 +86,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
             Some(add_vecs(
                 vec![Syntax::Instruction(Instruction::MathBinary(
                     math_op,
-                    Item::from_token(src.clone()).unwrap(),
+                    Item::try_from(src.clone()).unwrap(),
                     dst.clone(),
                 ))],
                 interpret_tokens(rest)?,
@@ -115,8 +106,8 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 vec![Syntax::Instruction(Instruction::JmpCmp(
                     cmp_op,
                     src.clone(),
-                    Item::from_token(src_a.clone()).unwrap(),
-                    Item::from_token(jmp.clone()).unwrap(),
+                    Item::try_from(src_a.clone()).unwrap(),
+                    Item::try_from(jmp.clone()).unwrap(),
                 ))],
                 interpret_tokens(rest)?,
             ))
