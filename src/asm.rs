@@ -6,7 +6,7 @@ use self::instruction::Value;
 mod instruction;
 mod syntax;
 
-#[derive(EnumString, Debug, Clone, Copy)]
+#[derive(EnumString, Debug, Clone, Copy, PartialEq, Eq)]
 #[strum(ascii_case_insensitive)]
 pub enum Keyword {
     Mov,

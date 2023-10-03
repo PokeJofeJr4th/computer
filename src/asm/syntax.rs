@@ -21,15 +21,15 @@ pub(super) fn interpret(src: &[Token]) -> Option<Vec<u16>> {
     let statements = interpret_tokens(src)?;
     println!("{statements:?}");
     // first pass to get location of all the labels
-    let mut byte_location: usize = 0x8000;
+    let mut byte_location: u16 = 0x8000;
     let mut labels = BTreeMap::new();
     for statement in &statements {
         match statement {
             Syntax::Label(label) => {
-                labels.insert(label.clone(), byte_location as u16);
+                labels.insert(label.clone(), byte_location);
             }
             Syntax::Instruction(instruction) => {
-                byte_location += instruction.to_machine_code().len();
+                byte_location += instruction.to_machine_code().len() as u16;
             }
         }
     }
@@ -140,6 +140,16 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                     src.clone(),
                     Item::try_from(src_a.clone()).unwrap(),
                     dst.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [Token::Keyword(cmp @ (Keyword::Jez | Keyword::Jnz)), Token::Address(cnd), jump @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] => {
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::Jcmpz(
+                    *cmp == Keyword::Jez,
+                    cnd.clone(),
+                    Item::try_from(jump.clone()).unwrap(),
                 ))],
                 interpret_tokens(rest)?,
             ))

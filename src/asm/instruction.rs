@@ -211,6 +211,28 @@ impl Instruction {
                     vec![0x0E00 | mode << 4, jmp]
                 }
             }
+            Self::Jcmpz(cmp, cnd, jump) => {
+                let mode = match (cmp, jump) {
+                    (true, Item::Address(_)) => 5,
+                    (true, Item::Literal(_)) => 6,
+                    (false, Item::Address(_)) => 7,
+                    (false, Item::Literal(_)) => 8,
+                };
+                match (cnd.to_number(), jump.to_number()) {
+                    (cnd @ 0..=0xF, jump @ 0..=0xF) => {
+                        vec![mode << 8 | cnd << 4 | jump]
+                    }
+                    (cnd @ 0..=0xF, jump) => {
+                        vec![0x0D00 | mode << 4 | cnd, jump]
+                    }
+                    (cnd, jump @ 0..=0xF) => {
+                        vec![0x0E00 | mode << 4 | jump, cnd]
+                    }
+                    (cnd, jump) => {
+                        vec![0x0F00 | mode << 4, cnd, jump]
+                    }
+                }
+            }
             Self::MathBinary(math_op, src, dst) => {
                 let mode = match src {
                     Item::Address(_) => 0,
