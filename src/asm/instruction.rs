@@ -255,6 +255,43 @@ impl Instruction {
                     }
                 }
             }
+            Self::MathTernary(math_op, src_a, src, dst) => {
+                let mode = match (src_a, src) {
+                    (Item::Address(_), Item::Address(_)) => 2,
+                    (Item::Literal(_), Item::Address(_)) => 3,
+                    (Item::Address(_), Item::Literal(_)) => 4,
+                    _ => panic!("Invalid use of ternary math op like `ADD #LIT #LIT &DST`"),
+                };
+                match (src_a.to_number(), src.to_number(), dst.to_number()) {
+                    (src_a @ 0..=0xF, src @ 0..=0xF, dst) => {
+                        vec![math_op.first_nibble() | mode << 8 | src_a << 4 | src, dst]
+                    }
+                    (src_a @ 0..=0xF, src, dst) => {
+                        vec![
+                            math_op.first_nibble() | 0x0C00 | mode << 4 | src_a,
+                            src,
+                            dst,
+                        ]
+                    }
+                    (src_a, src @ 0..=0xF, dst) => {
+                        vec![
+                            math_op.first_nibble() | 0x0D00 | mode << 4 | src,
+                            src_a,
+                            dst,
+                        ]
+                    }
+                    (src_a, src, dst @ 0..=0xF) => {
+                        vec![
+                            math_op.first_nibble() | 0x0E00 | mode << 4 | dst,
+                            src,
+                            src_a,
+                        ]
+                    }
+                    (src_a, src, dst) => {
+                        vec![math_op.first_nibble() | 0x0F00 | mode << 4, src_a, src, dst]
+                    }
+                }
+            }
             Self::JmpCmp(cmp_op, src, src_a, jmp) => {
                 let mode = match (src_a, jmp) {
                     (Item::Address(_), Item::Address(_)) => 0,

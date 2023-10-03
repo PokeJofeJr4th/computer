@@ -60,7 +60,7 @@ second nibble: mode
 - 6: JEZ &CND #LIT
 - 7: JNZ &CND &SRC
 - 8: JNZ &CND #LIT
-- 9: ?
+- 9: DEREF &SRC, &DEST
 - A: ?
 - B: ?
 - C: ?
