@@ -111,7 +111,14 @@ impl Item {
     pub fn with_labels(self, labels: &BTreeMap<String, u16>) -> Self {
         match self {
             Self::Address(addr) => Self::Address(addr.with_labels(labels)),
-            Self::Literal(addr) => Self::Literal(addr.with_labels(labels)),
+            Self::Literal(lit) => Self::Literal(lit.with_labels(labels)),
+        }
+    }
+
+    pub const fn to_number(&self) -> u16 {
+        match self {
+            Self::Address(addr) => addr.to_number(),
+            Self::Literal(lit) => lit.to_number(),
         }
     }
 }
@@ -160,11 +167,11 @@ impl Instruction {
         match self {
             Self::Yield => vec![CPU::YIELD_INSTRUCTION],
             Self::Mov(src, dst) => {
-                let (src, mode) = match src {
-                    Item::Address(src) => (src.to_number(), 0),
-                    Item::Literal(src) => (src.to_number(), 1),
+                let mode = match src {
+                    Item::Address(_) => 0,
+                    Item::Literal(_) => 1,
                 };
-                match (src, dst.to_number()) {
+                match (src.to_number(), dst.to_number()) {
                     (lit @ 0..=0xF, dst @ 0..=0xF) => {
                         vec![mode << 8 | (lit << 4) | dst]
                     }
@@ -178,10 +185,11 @@ impl Instruction {
                 }
             }
             Self::Jmp(jmp) => {
-                let (jmp, mode) = match jmp {
-                    Item::Address(jmp) => (jmp.to_number(), 3),
-                    Item::Literal(jmp) => (jmp.to_number(), 4),
+                let mode = match jmp {
+                    Item::Address(_) => 3,
+                    Item::Literal(_) => 4,
                 };
+                let jmp = jmp.to_number();
                 if jmp <= 0xF {
                     vec![mode << 8 | (jmp << 4)]
                 } else {
@@ -189,10 +197,11 @@ impl Instruction {
                 }
             }
             Self::MathBinary(math_op, src, dst) => {
-                let (src, mode) = match src {
-                    Item::Address(src) => (src.to_number(), 0),
-                    Item::Literal(src) => (src.to_number(), 1),
+                let mode = match src {
+                    Item::Address(_) => 0,
+                    Item::Literal(_) => 1,
                 };
+                let src = src.to_number();
                 let dst = dst.to_number();
                 match (src, dst) {
                     (src @ 0..=0xF, dst @ 0..=0xF) => {
@@ -210,25 +219,28 @@ impl Instruction {
                 }
             }
             Self::JmpCmp(cmp_op, src, src_a, jmp) => {
-                let (src_a, jmp, mode) = match (src_a, jmp) {
-                    (Item::Address(src_a), Item::Address(jmp)) => {
-                        (src_a.to_number(), jmp.to_number(), 0)
-                    }
-                    (Item::Address(src_a), Item::Literal(jmp)) => {
-                        (src_a.to_number(), jmp.to_number(), 1)
-                    }
-                    (Item::Literal(src_a), Item::Address(jmp)) => {
-                        (src_a.to_number(), jmp.to_number(), 2)
-                    }
-                    (Item::Literal(src_a), Item::Literal(jmp)) => {
-                        (src_a.to_number(), jmp.to_number(), 3)
-                    }
+                let mode = match (src_a, jmp) {
+                    (Item::Address(_), Item::Address(_)) => 0,
+                    (Item::Address(_), Item::Literal(_)) => 1,
+                    (Item::Literal(_), Item::Address(_)) => 2,
+                    (Item::Literal(_), Item::Literal(_)) => 3,
                 };
-                match (src.to_number(), src_a, jmp) {
+                match (src.to_number(), src_a.to_number(), jmp.to_number()) {
                     (src @ 0..=0xF, src_a @ 0..=0xF, jmp) => {
                         vec![cmp_op.first_nibble() | mode << 8 | src << 4 | src_a, jmp]
                     }
-                    _ => todo!(),
+                    (src @ 0..=0xF, src_a, jmp) => {
+                        vec![cmp_op.first_nibble() | 0x0C00 | mode << 4 | src, src_a, jmp]
+                    }
+                    (src, src_a @ 0..=0xF, jmp) => {
+                        vec![cmp_op.first_nibble() | 0x0D00 | mode << 4 | src_a, src, jmp]
+                    }
+                    (src, src_a, jmp @ 0..=0xF) => {
+                        vec![cmp_op.first_nibble() | 0x0E00 | mode << 4 | jmp, src, src_a]
+                    }
+                    (src, src_a, jmp) => {
+                        vec![cmp_op.first_nibble() | 0x0F00 | mode << 4, src, src_a, jmp]
+                    }
                 }
             }
             _ => Vec::new(),
