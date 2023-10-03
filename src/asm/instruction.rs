@@ -8,9 +8,9 @@ use super::{Keyword, Token};
 pub enum Instruction {
     Yield,
     Mov(Item, Value),
+    Swp(Value, Value),
     Jmp(Item),
-    Jez(Value, Item),
-    Jnz(Value, Item),
+    Jcmpz(bool, Value, Item),
     MathBinary(MathOp, Item, Value),
     MathTernary(MathOp, Item, Item, Value),
     JmpCmp(CmpOp, Value, Item, Item),
@@ -163,6 +163,7 @@ impl Value {
 }
 
 impl Instruction {
+    #[allow(clippy::too_many_lines)]
     pub fn to_machine_code(&self) -> Vec<u16> {
         match self {
             Self::Yield => vec![CPU::YIELD_INSTRUCTION],
@@ -184,6 +185,20 @@ impl Instruction {
                     (lit, dst) => vec![0x0F00 | mode << 4, lit, dst],
                 }
             }
+            Self::Swp(src, dst) => match (src.to_number(), dst.to_number()) {
+                (src @ 0..=0xF, dst @ 0..=0xF) => {
+                    vec![0x0200 | src << 4 | dst]
+                }
+                (src @ 0..=0xF, dst) => {
+                    vec![0x0D20 | src, dst]
+                }
+                (src, dst @ 0..=0xF) => {
+                    vec![0x0E20 | dst, src]
+                }
+                (src, dst) => {
+                    vec![0x0F20, src, dst]
+                }
+            },
             Self::Jmp(jmp) => {
                 let mode = match jmp {
                     Item::Address(_) => 3,
@@ -243,6 +258,29 @@ impl Instruction {
                     }
                 }
             }
+            Self::Cmp(cmp_op, src, src_a, dst) => {
+                let mode = match src_a {
+                    Item::Address(_) => 4,
+                    Item::Literal(_) => 5,
+                };
+                match (src.to_number(), src_a.to_number(), dst.to_number()) {
+                    (src @ 0..=0xF, src_a @ 0..=0xF, dst) => {
+                        vec![cmp_op.first_nibble() | mode << 8 | src << 4 | src_a, dst]
+                    }
+                    (src @ 0..=0xF, src_a, dst) => {
+                        vec![cmp_op.first_nibble() | 0x0C00 | mode << 4 | src, src_a, dst]
+                    }
+                    (src, src_a @ 0..=0xF, dst) => {
+                        vec![cmp_op.first_nibble() | 0x0D00 | mode << 4 | src_a, src, dst]
+                    }
+                    (src, src_a, dst @ 0..=0xF) => {
+                        vec![cmp_op.first_nibble() | 0x0E00 | mode << 4 | dst, src, src_a]
+                    }
+                    (src, src_a, dst) => {
+                        vec![cmp_op.first_nibble() | 0x0F00 | mode << 4, src, src_a, dst]
+                    }
+                }
+            }
             _ => Vec::new(),
         }
     }
@@ -251,9 +289,9 @@ impl Instruction {
         match self {
             Self::Yield => Self::Yield,
             Self::Mov(a, b) => Self::Mov(a.with_labels(labels), b.with_labels(labels)),
+            Self::Swp(a, b) => Self::Swp(a.with_labels(labels), b.with_labels(labels)),
             Self::Jmp(a) => Self::Jmp(a.with_labels(labels)),
-            Self::Jez(a, b) => Self::Jez(a.with_labels(labels), b.with_labels(labels)),
-            Self::Jnz(a, b) => Self::Jnz(a.with_labels(labels), b.with_labels(labels)),
+            Self::Jcmpz(a, b, c) => Self::Jcmpz(a, b.with_labels(labels), c.with_labels(labels)),
             Self::MathBinary(op, a, b) => {
                 Self::MathBinary(op, a.with_labels(labels), b.with_labels(labels))
             }

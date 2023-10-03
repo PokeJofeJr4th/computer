@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use crate::{asm::instruction::CmpOp, utils::print_and_ret};
+use crate::{
+    asm::instruction::CmpOp,
+    utils::{add_vecs, print_and_ret},
+};
 
 use super::{
     instruction::{Instruction, Item, MathOp},
@@ -63,6 +66,15 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 interpret_tokens(rest)?,
             ))
         }
+        [Token::Keyword(Keyword::Swp), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
+            Some(add_vecs(
+                print_and_ret(vec![Syntax::Instruction(Instruction::Swp(
+                    src.clone(),
+                    dst.clone(),
+                ))]),
+                interpret_tokens(rest)?,
+            ))
+        }
         [Token::Keyword(Keyword::Jmp), Token::Literal(lit), Token::SemiColon, rest @ ..] => {
             Some(add_vecs(
                 print_and_ret(vec![Syntax::Instruction(Instruction::Jmp(Item::Literal(
@@ -112,11 +124,26 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 interpret_tokens(rest)?,
             ))
         }
+        [Token::Keyword(
+            cmp_op @ (Keyword::Ceq
+            | Keyword::Cne
+            | Keyword::Clt
+            | Keyword::Cle
+            | Keyword::Cgt
+            | Keyword::Cge),
+        ), Token::Address(src), src_a @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] =>
+        {
+            let cmp_op = CmpOp::try_from(*cmp_op).unwrap();
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::Cmp(
+                    cmp_op,
+                    src.clone(),
+                    Item::try_from(src_a.clone()).unwrap(),
+                    dst.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
         _ => None,
     }
-}
-
-fn add_vecs<T>(mut a: Vec<T>, b: impl IntoIterator<Item = T>) -> Vec<T> {
-    a.extend(b);
-    a
 }
