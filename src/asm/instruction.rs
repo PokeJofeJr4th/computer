@@ -11,14 +11,12 @@ pub enum Instruction {
     Swp(Value, Value),
     Jmp(Item),
     Jcmpz(bool, Value, Item),
-    Deref(Value, Value),
-    Movptr(Item, Value),
+    Ptrread(Value, Value),
+    Ptrwrite(Item, Value),
     MathBinary(MathOp, Item, Value),
     MathTernary(MathOp, Item, Item, Value),
     JmpCmp(CmpOp, Value, Item, Item),
     Cmp(CmpOp, Value, Item, Value),
-    NotUnary(Value),
-    NotBinary(Value, Value),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -240,37 +238,52 @@ impl Instruction {
                     }
                 }
             }
-            Self::Deref(src, dst) => match (src.to_number(), dst.to_number()) {
-                (src @ 0..=0xF, dst @ 0..=0xF) => {
-                    vec![0x0900 | src << 4 | dst]
+            Self::Ptrread(src, dst) => {
+                let src = src.to_number();
+                let dst = dst.to_number();
+                if src == dst {
+                    match src {
+                        src @ 0..=0xF => {
+                            vec![0xA000 | src << 4]
+                        }
+                        src => {
+                            vec![0xAE00, src]
+                        }
+                    }
+                } else {
+                    match (src, dst) {
+                        (src @ 0..=0xF, dst @ 0..=0xF) => {
+                            vec![0xA100 | src << 4 | dst]
+                        }
+                        (src @ 0..=0xF, dst) => {
+                            vec![0xAD10 | src, dst]
+                        }
+                        (src, dst @ 0..=0xF) => {
+                            vec![0xAE10 | dst, src]
+                        }
+                        (src, dst) => {
+                            vec![0xAF10, src, dst]
+                        }
+                    }
                 }
-                (src @ 0..=0xF, dst) => {
-                    vec![0x0D90 | src, dst]
-                }
-                (src, dst @ 0..=0xF) => {
-                    vec![0x0E90 | dst, src]
-                }
-                (src, dst) => {
-                    vec![0x0F90, src, dst]
-                }
-            },
-            Self::Movptr(src, dst) => {
+            }
+            Self::Ptrwrite(src, dst) => {
                 let mode = match src {
-                    Item::Address(_) => 0xA,
-                    Item::Literal(_) => 0xB,
+                    Item::Address(_) => 2,
+                    Item::Literal(_) => 2,
                 };
                 match (src.to_number(), dst.to_number()) {
                     (src @ 0..=0xF, dst @ 0..=0xF) => {
-                        vec![mode << 8 | src << 4 | dst]
+                        vec![0xA000 | mode << 8 | src << 4 | dst]
                     }
                     (src @ 0..=0xF, dst) => {
-                        vec![0x0D00 | mode << 4 | src, dst]
+                        vec![0xAD00 | mode << 4 | src, dst]
                     }
                     (src, dst @ 0..=0xF) => {
-                        vec![0x0E00 | mode << 4 | dst, src]
+                        vec![0xAE00 | mode << 4 | dst, src]
                     }
                     (src, dst) => {
-                        vec![0x0F00 | mode << 4, src, dst]
+                        vec![0xAF00 | mode << 4, src, dst]
                     }
                 }
             }
@@ -392,8 +405,8 @@ impl Instruction {
             Self::Swp(a, b) => Self::Swp(a.with_labels(labels), b.with_labels(labels)),
             Self::Jmp(a) => Self::Jmp(a.with_labels(labels)),
             Self::Jcmpz(a, b, c) => Self::Jcmpz(a, b.with_labels(labels), c.with_labels(labels)),
-            Self::Deref(a, b) => Self::Deref(a.with_labels(labels), b.with_labels(labels)),
-            Self::Movptr(a, b) => Self::Movptr(a.with_labels(labels), b.with_labels(labels)),
+            Self::Ptrread(a, b) => Self::Ptrread(a.with_labels(labels), b.with_labels(labels)),
+            Self::Ptrwrite(a, b) => Self::Ptrwrite(a.with_labels(labels), b.with_labels(labels)),
             Self::MathBinary(op, a, b) => {
                 Self::MathBinary(op, a.with_labels(labels), b.with_labels(labels))
             }
@@ -415,8 +428,6 @@ impl Instruction {
                 b.with_labels(labels),
                 c.with_labels(labels),
             ),
-            Self::NotUnary(a) => Self::NotUnary(a.with_labels(labels)),
-            Self::NotBinary(a, b) => Self::NotBinary(a.with_labels(labels), b.with_labels(labels)),
         }
     }
 }

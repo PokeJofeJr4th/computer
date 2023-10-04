@@ -105,7 +105,7 @@ impl CPU {
         let nibbles = u16_to_nibbles(instruction);
         if nibbles.0 == 0 {
             // MOV/JMP
-            if nibbles.1 <= 0xB {
+            if nibbles.1 <= 0x8 {
                 // normal thing with 1-2 arguments
                 self.advance_instruction(1);
                 self.mov_or_jmp(nibbles.1, nibbles.2, nibbles.3);
@@ -154,8 +154,8 @@ impl CPU {
             // GE
             self.cmp_op_outer(PartialOrd::ge, instruction_ptr, nibbles);
         } else if nibbles.0 == 0xA {
-            // NOT
-            self.not_outer(instruction_ptr, nibbles);
+            // PTR
+            self.ptr_outer(instruction_ptr, nibbles);
         } else if nibbles.0 == 0xB {
             // AND
             self.math_op_outer(BitAnd::bitand, instruction_ptr, nibbles);
@@ -227,20 +227,6 @@ impl CPU {
             if comparison != 0 {
                 self.set_mem(Self::INSTRUCTION_PTR, second_arg);
             }
-        } else if mode == 9 {
-            // DEREF &SRC, &DST
-            let reference = self.get_mem(first_arg);
-            let value = self.get_mem(reference);
-            self.set_mem(second_arg, value);
-        } else if mode == 0xA {
-            // MOVPTR &SRC, &DST
-            let reference = self.get_mem(second_arg);
-            let source = self.get_mem(first_arg);
-            self.set_mem(reference, source);
-        } else if mode == 0xB {
-            // MOVPTR #SRC, &DST
-            let reference = self.get_mem(second_arg);
-            self.set_mem(reference, first_arg);
         }
     }
 
@@ -390,42 +376,43 @@ impl CPU {
         }
     }
 
-    fn not_outer(&mut self, instruction_ptr: u16, nibbles: (u16, u16, u16, u16)) {
-        if nibbles.1 == 0 {
-            // NOT &SRC
-            self.not_instruction(nibbles.2, nibbles.2);
+    fn ptr_outer(&mut self, instruction_ptr: u16, nibbles: (u16, u16, u16, u16)) {
+        if nibbles.1 <= 3 {
+            self.ptr_op(nibbles.1, nibbles.2, nibbles.3);
             self.advance_instruction(1);
-        } else if nibbles.1 == 1 {
-            // NOT &SRC, &DEST
-            self.not_instruction(nibbles.2, nibbles.3);
-            self.advance_instruction(1);
-        } else if nibbles.1 == 2 {
-            // NOT &SRC | SRC
-            let source = self.get_mem(instruction_ptr + 1);
-            self.not_instruction(source, source);
+        } else if nibbles.1 == 0xD {
+            let second_arg = self.get_mem(instruction_ptr + 1);
+            self.ptr_op(nibbles.2, nibbles.3, second_arg);
             self.advance_instruction(2);
-        } else if nibbles.1 == 3 {
-            // NOT &SRC, &DST | DST
-            let destination = self.get_mem(instruction_ptr + 1);
-            self.not_instruction(nibbles.2, destination);
+        } else if nibbles.1 == 0xE {
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            self.ptr_op(nibbles.2, first_arg, nibbles.3);
             self.advance_instruction(2);
-        } else if nibbles.1 == 4 {
-            // NOT &SRC, &DST | SRC
-            let source = self.get_mem(instruction_ptr + 1);
-            self.not_instruction(source, nibbles.2);
-            self.advance_instruction(2);
-        } else if nibbles.1 == 5 {
-            // NOT &SRC, &DST | SRC | DST
-            let source = self.get_mem(instruction_ptr + 1);
-            let destination = self.get_mem(instruction_ptr + 2);
-            self.not_instruction(source, destination);
+        } else if nibbles.1 == 0xF {
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            let second_arg = self.get_mem(instruction_ptr + 2);
+            self.ptr_op(nibbles.2, first_arg, second_arg);
             self.advance_instruction(3);
         }
     }
 
-    fn not_instruction(&mut self, source: u16, destination: u16) {
-        let source = self.get_mem(source);
-        self.set_mem(destination, !source);
+    fn ptr_op(&mut self, mode: u16, first_arg: u16, second_arg: u16) {
+        if mode == 0 {
+            let pointer = self.get_mem(first_arg);
+            let value = self.get_mem(pointer);
+            self.set_mem(first_arg, value);
+        } else if mode == 1 {
+            let pointer = self.get_mem(first_arg);
+            let value = self.get_mem(pointer);
+            self.set_mem(second_arg, value);
+        } else if mode == 2 {
+            let value = self.get_mem(first_arg);
+            let pointer = self.get_mem(second_arg);
+            self.set_mem(pointer, value);
+        } else if mode == 3 {
+            let pointer = self.get_mem(second_arg);
+            self.set_mem(pointer, first_arg);
+        }
     }
 
     pub fn mut_mem(&mut self, idx: u16) -> &mut u16 {

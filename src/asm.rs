@@ -35,15 +35,14 @@ pub enum Keyword {
     Cgt,
     Jge,
     Cge,
-    Not,
     And,
     Or,
     Xor,
     Shl,
     Shr,
     Yield,
-    Deref,
-    Movptr,
+    Ptrread,
+    Ptrwrite,
     Reserve,
 }
 

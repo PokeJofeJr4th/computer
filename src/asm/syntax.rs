@@ -96,18 +96,26 @@ fn interpret_tokens(src: &[Token], output: &mut Vec<Syntax>) -> Result<(), Vec<T
             interpret_tokens(rest, output)?;
             Ok(())
         }
-        [Token::Keyword(Keyword::Deref), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] =>
+        [Token::Keyword(Keyword::Ptrread), Token::Address(src), Token::SemiColon, rest @ ..] => {
+            output.push(Syntax::Instruction(Instruction::Ptrread(
+                src.clone(),
+                src.clone(),
+            )));
+            interpret_tokens(rest, output)?;
+            Ok(())
+        }
+        [Token::Keyword(Keyword::Ptrread), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] =>
         {
-            output.push(Syntax::Instruction(Instruction::Deref(
+            output.push(Syntax::Instruction(Instruction::Ptrread(
                 src.clone(),
                 dst.clone(),
             )));
             interpret_tokens(rest, output)?;
             Ok(())
         }
-        [Token::Keyword(Keyword::Movptr), src @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] =>
+        [Token::Keyword(Keyword::Ptrwrite), src @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] =>
         {
-            output.push(Syntax::Instruction(Instruction::Movptr(
+            output.push(Syntax::Instruction(Instruction::Ptrwrite(
                 Item::try_from(src.clone()).unwrap(),
                 dst.clone(),
             )));

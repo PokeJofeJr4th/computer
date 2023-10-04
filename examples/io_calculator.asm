@@ -12,14 +12,14 @@ YIELD;
 JEZ r0 #parse;
 JLT r0 #30 #read_input_loop;
 JGT r0 #39 #read_input_loop;
-MOVPTR r0 r3;
+PTRWRITE r0 r3;
 ADD #1 r3;
 JMP #read_input_loop;
 :parse
 MOV #1 r1;
 :parse_loop
 SUB #1 r3;
-DEREF r3 r2;
+PTRREAD r3 r2;
 JEZ r2 &second_input_buf;
 JLT r2 #30 #parse_loop;
 JGT r2 #39 #end;
@@ -62,7 +62,7 @@ MOV #1 &12;
 MOV rF r2;
 MOV #pow_10 r3;
 :print_output_loop
-DEREF r3 r1;
+PTRREAD r3 r1;
 ADD #1 r3;
 MOV #30 r0;
 :digit_loop
@@ -84,7 +84,7 @@ JMP #end;
 :print
 MOV #1 &12;
 :print_loop
-DEREF &string_location r0;
+PTRREAD &string_location r0;
 ADD #1 &string_location;
 YIELD;
 JNZ r0 #print_loop;
