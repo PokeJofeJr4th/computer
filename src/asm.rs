@@ -124,6 +124,6 @@ fn lex(src: &str) -> Option<Vec<Token>> {
 #[allow(clippy::module_name_repetitions)]
 pub fn compile_asm(src: &str) -> Result<Vec<u16>, ASMError> {
     let toks = lex(src).ok_or(ASMError::TokenError)?;
-    println!("{toks:?}");
+    // println!("{toks:?}");
     syntax::interpret(&toks).map_err(ASMError::SyntaxError)
 }

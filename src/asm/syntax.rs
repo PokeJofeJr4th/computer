@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     asm::instruction::CmpOp,
-    utils::{add_vecs, print_and_ret},
+    utils::{add_vecs, print_and_ret, prepend_vec},
 };
 
 use super::{
@@ -52,20 +52,20 @@ pub(super) fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
 fn interpret_tokens(src: &[Token]) -> Result<Vec<Syntax>, Vec<Token>> {
     match src {
         [] => Ok(Vec::new()),
-        [Token::Keyword(Keyword::Yield), Token::SemiColon, rest @ ..] => Ok(add_vecs(
-            print_and_ret(vec![Syntax::Instruction(Instruction::Yield)]),
+        [Token::Keyword(Keyword::Yield), Token::SemiColon, rest @ ..] => Ok(prepend_vec(
+            print_and_ret(Syntax::Instruction(Instruction::Yield)),
             interpret_tokens(rest)?,
         )),
-        [Token::Label(label), rest @ ..] => Ok(add_vecs(
-            print_and_ret(vec![Syntax::Label(label.clone())]),
+        [Token::Label(label), rest @ ..] => Ok(prepend_vec(
+            print_and_ret(Syntax::Label(label.clone())),
             interpret_tokens(rest)?,
         )),
         [Token::Keyword(Keyword::Mov), src @ (Token::Literal(_) | Token::Address(_)), Token::Address(addr), Token::SemiColon, rest @ ..] => {
-            Ok(add_vecs(
-                print_and_ret(vec![Syntax::Instruction(Instruction::Mov(
+            Ok(prepend_vec(
+                print_and_ret(Syntax::Instruction(Instruction::Mov(
                     Item::try_from(src.clone()).unwrap(),
                     addr.clone(),
-                ))]),
+                ))),
                 interpret_tokens(rest)?,
             ))
         }
