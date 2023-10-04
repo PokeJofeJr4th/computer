@@ -1,7 +1,7 @@
 MOV #first_number_buffer &number_buffer;
 :get_input
 MOV #1 &12;
-MOV #number_buffer &string_location;
+MOV &number_buffer &string_location;
 MOV #read_input &callback_location;
 JMP #print;
 :read_input
