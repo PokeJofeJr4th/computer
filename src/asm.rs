@@ -6,6 +6,12 @@ use self::instruction::Value;
 mod instruction;
 mod syntax;
 
+#[derive(Debug)]
+pub enum ASMError {
+    TokenError,
+    SyntaxError(Vec<Token>),
+}
+
 #[derive(EnumString, Debug, Clone, Copy, PartialEq, Eq)]
 #[strum(ascii_case_insensitive)]
 pub enum Keyword {
@@ -38,6 +44,7 @@ pub enum Keyword {
     Yield,
     Deref,
     Movptr,
+    Reserve,
 }
 
 #[derive(Debug, Clone)]
@@ -114,10 +121,9 @@ fn lex(src: &str) -> Option<Vec<Token>> {
         .map(Iterator::collect)
 }
 
-#[must_use]
 #[allow(clippy::module_name_repetitions)]
-pub fn compile_asm(src: &str) -> Option<Vec<u16>> {
-    let toks = lex(src)?;
+pub fn compile_asm(src: &str) -> Result<Vec<u16>, ASMError> {
+    let toks = lex(src).ok_or(ASMError::TokenError)?;
     println!("{toks:?}");
-    syntax::interpret(&toks)
+    syntax::interpret(&toks).map_err(ASMError::SyntaxError)
 }

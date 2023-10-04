@@ -37,9 +37,9 @@ JMP #get_input;
 :math
 MOV r0 rE;
 MOV #1 &12;
-MOV #operaton_buffer &string_location;
+MOV #operation_buffer &string_location;
 MOV #math_loop &callback_location;
-JMP #print
+JMP #print;
 :math_loop
 MOV #2 &12;
 YIELD;
@@ -62,16 +62,16 @@ JNZ r0 #after_math;
 :print_output
 MOV #1 &12;
 MOV rF r2;
-MOV #pow_10 &pow_10;
+MOV #pow_10 r3;
 :print_output_loop
-MOV &pow_10 r1;
-ADD #1 &pow_1;
+DEREF r3 r1;
+ADD #1 r3;
 MOV #30 r0;
 :digit_loop
 JLT r2 r1 #after_digit;
-SUB r1 r2
-ADD #1 r0
-JLE r1 r2 #digit_loop
+SUB r1 r2;
+ADD #1 r0;
+JLE r1 r2 #digit_loop;
 :after_digit
 YIELD;
 JGT r1 #1 #print_output_loop;
@@ -92,43 +92,24 @@ YIELD;
 JNZ r0 #print_loop;
 JMP &callback_location;
 :string_location
-MOV r0 r0;
+RESERVE #1;
 :callback_location
-MOV r0 r0;
+RESERVE #1;
 :second_input
-MOV r0 r0;
+RESERVE #1;
 :number_buffer
-MOV r0 r0;
+RESERVE #1;
 :input_buffer
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
+RESERVE #100;
 :first_number_buffer
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
+RESERVE #100;
 :second_number_buffer
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
+RESERVE #100;
 :operation_buffer
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
-MOV r0 r0;
+RESERVE #100;
+:pow_10
+#2710;
+#03E8;
+#0064;
+#000A;
+#0001;

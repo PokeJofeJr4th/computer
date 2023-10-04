@@ -159,7 +159,12 @@ impl Value {
     pub fn with_labels(self, labels: &BTreeMap<String, u16>) -> Self {
         match self {
             Self::Given(num) => Self::Given(num),
-            Self::Label(label) => Self::Given(labels.get(&label).copied().unwrap()),
+            Self::Label(label) => Self::Given(
+                labels
+                    .get(&label)
+                    .copied()
+                    .unwrap_or_else(|| panic!("No valid label found for {label}")),
+            ),
         }
     }
 }

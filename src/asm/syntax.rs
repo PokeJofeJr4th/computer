@@ -14,9 +14,11 @@ use super::{
 pub enum Syntax {
     Label(String),
     Instruction(Instruction),
+    Literal(u16),
+    Reserve(u16),
 }
 
-pub(super) fn interpret(src: &[Token]) -> Option<Vec<u16>> {
+pub(super) fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
     // get the syntax
     let statements = interpret_tokens(src)?;
     println!("{statements:?}");
@@ -31,34 +33,35 @@ pub(super) fn interpret(src: &[Token]) -> Option<Vec<u16>> {
             Syntax::Instruction(instruction) => {
                 byte_location += instruction.to_machine_code().len() as u16;
             }
+            Syntax::Literal(_) => byte_location += 1,
+            Syntax::Reserve(len) => byte_location += len,
         }
     }
-    Some(
-        statements
-            .into_iter()
-            .filter_map(|syn| match syn {
-                Syntax::Label(_) => None,
-                Syntax::Instruction(instr) => Some(instr),
-            })
-            .flat_map(|instr| instr.with_labels(&labels).to_machine_code())
-            .collect(),
-    )
+    Ok(statements
+        .into_iter()
+        .flat_map(|syn| match syn {
+            Syntax::Label(_) => Vec::new(),
+            Syntax::Literal(lit) => vec![lit],
+            Syntax::Reserve(lit) => vec![0; lit.into()],
+            Syntax::Instruction(instr) => instr.with_labels(&labels).to_machine_code(),
+        })
+        .collect())
 }
 
 #[allow(clippy::too_many_lines)]
-fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
+fn interpret_tokens(src: &[Token]) -> Result<Vec<Syntax>, Vec<Token>> {
     match src {
-        [] => Some(Vec::new()),
-        [Token::Keyword(Keyword::Yield), Token::SemiColon, rest @ ..] => Some(add_vecs(
+        [] => Ok(Vec::new()),
+        [Token::Keyword(Keyword::Yield), Token::SemiColon, rest @ ..] => Ok(add_vecs(
             print_and_ret(vec![Syntax::Instruction(Instruction::Yield)]),
             interpret_tokens(rest)?,
         )),
-        [Token::Label(label), rest @ ..] => Some(add_vecs(
+        [Token::Label(label), rest @ ..] => Ok(add_vecs(
             print_and_ret(vec![Syntax::Label(label.clone())]),
             interpret_tokens(rest)?,
         )),
         [Token::Keyword(Keyword::Mov), src @ (Token::Literal(_) | Token::Address(_)), Token::Address(addr), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
+            Ok(add_vecs(
                 print_and_ret(vec![Syntax::Instruction(Instruction::Mov(
                     Item::try_from(src.clone()).unwrap(),
                     addr.clone(),
@@ -67,7 +70,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
             ))
         }
         [Token::Keyword(Keyword::Swp), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
+            Ok(add_vecs(
                 print_and_ret(vec![Syntax::Instruction(Instruction::Swp(
                     src.clone(),
                     dst.clone(),
@@ -75,16 +78,16 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 interpret_tokens(rest)?,
             ))
         }
-        [Token::Keyword(Keyword::Jmp), Token::Literal(lit), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
-                print_and_ret(vec![Syntax::Instruction(Instruction::Jmp(Item::Literal(
-                    lit.clone(),
-                )))]),
+        [Token::Keyword(Keyword::Jmp), jmp @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] => {
+            Ok(add_vecs(
+                print_and_ret(vec![Syntax::Instruction(Instruction::Jmp(
+                    Item::try_from(jmp.clone()).unwrap(),
+                ))]),
                 interpret_tokens(rest)?,
             ))
         }
         [Token::Keyword(cmp @ (Keyword::Jez | Keyword::Jnz)), Token::Address(cnd), jump @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
+            Ok(add_vecs(
                 vec![Syntax::Instruction(Instruction::Jcmpz(
                     *cmp == Keyword::Jez,
                     cnd.clone(),
@@ -94,9 +97,18 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
             ))
         }
         [Token::Keyword(Keyword::Deref), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
+            Ok(add_vecs(
                 vec![Syntax::Instruction(Instruction::Deref(
                     src.clone(),
+                    dst.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [Token::Keyword(Keyword::Movptr), src @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] => {
+            Ok(add_vecs(
+                vec![Syntax::Instruction(Instruction::Movptr(
+                    Item::try_from(src.clone()).unwrap(),
                     dst.clone(),
                 ))],
                 interpret_tokens(rest)?,
@@ -114,7 +126,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
         ), src @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] =>
         {
             let math_op = MathOp::try_from(*math_op).unwrap();
-            Some(add_vecs(
+            Ok(add_vecs(
                 vec![Syntax::Instruction(Instruction::MathBinary(
                     math_op,
                     Item::try_from(src.clone()).unwrap(),
@@ -133,7 +145,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
         ), Token::Address(src), src_a @ (Token::Address(_) | Token::Literal(_)), jmp @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] =>
         {
             let cmp_op = CmpOp::try_from(*cmp_op).unwrap();
-            Some(add_vecs(
+            Ok(add_vecs(
                 vec![Syntax::Instruction(Instruction::JmpCmp(
                     cmp_op,
                     src.clone(),
@@ -153,7 +165,7 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
         ), Token::Address(src), src_a @ (Token::Address(_) | Token::Literal(_)), Token::Address(dst), Token::SemiColon, rest @ ..] =>
         {
             let cmp_op = CmpOp::try_from(*cmp_op).unwrap();
-            Some(add_vecs(
+            Ok(add_vecs(
                 vec![Syntax::Instruction(Instruction::Cmp(
                     cmp_op,
                     src.clone(),
@@ -163,6 +175,16 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 interpret_tokens(rest)?,
             ))
         }
-        _ => None,
+        [Token::Keyword(Keyword::Reserve), Token::Literal(lit), Token::SemiColon, rest @ ..] => {
+            Ok(add_vecs(
+                vec![Syntax::Reserve(lit.to_number())],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [Token::Literal(lit), Token::SemiColon, rest @ ..] => Ok(add_vecs(
+            vec![Syntax::Literal(lit.to_number())],
+            interpret_tokens(rest)?,
+        )),
+        rest => Err(rest.to_vec()),
     }
 }

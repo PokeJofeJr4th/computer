@@ -274,7 +274,7 @@ fn program() -> ComputerIO<CPU> {
     comp.insert_string(SECOND_NUMBER_BUFFER, "Enter the next number:");
     comp.insert_string(OPERATION_BUFFER, "Enter the operation (+, -, or *):");
 
-    comp.insert_data(POWERS_OF_TEN, &[10_000, 1_000, 100, 10, 1]);
+    comp.insert_data(POWERS_OF_TEN, &[0x2710, 0x03E8, 0x0064, 0x000A, 0x0001]);
 
     comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_LOCATION);
 
