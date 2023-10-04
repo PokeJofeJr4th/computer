@@ -105,7 +105,7 @@ impl CPU {
         let nibbles = u16_to_nibbles(instruction);
         if nibbles.0 == 0 {
             // MOV/JMP
-            if nibbles.1 <= 8 {
+            if nibbles.1 <= 9 {
                 // normal thing with 1-2 arguments
                 self.advance_instruction(1);
                 self.mov_or_jmp(nibbles.1, nibbles.2, nibbles.3);
@@ -227,6 +227,11 @@ impl CPU {
             if comparison != 0 {
                 self.set_mem(Self::INSTRUCTION_PTR, second_arg);
             }
+        } else if mode == 9 {
+            // DEREF &SRC, &DST
+            let reference = self.get_mem(first_arg);
+            let value = self.get_mem(reference);
+            self.set_mem(second_arg, value);
         }
     }
 

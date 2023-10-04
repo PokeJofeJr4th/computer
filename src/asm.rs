@@ -36,6 +36,7 @@ pub enum Keyword {
     Shl,
     Shr,
     Yield,
+    Deref,
 }
 
 #[derive(Debug, Clone)]

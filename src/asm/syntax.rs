@@ -83,6 +83,25 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                 interpret_tokens(rest)?,
             ))
         }
+        [Token::Keyword(cmp @ (Keyword::Jez | Keyword::Jnz)), Token::Address(cnd), jump @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] => {
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::Jcmpz(
+                    *cmp == Keyword::Jez,
+                    cnd.clone(),
+                    Item::try_from(jump.clone()).unwrap(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
+        [Token::Keyword(Keyword::Deref), Token::Address(src), Token::Address(dst), Token::SemiColon, rest @ ..] => {
+            Some(add_vecs(
+                vec![Syntax::Instruction(Instruction::Deref(
+                    src.clone(),
+                    dst.clone(),
+                ))],
+                interpret_tokens(rest)?,
+            ))
+        }
         [Token::Keyword(
             math_op @ (Keyword::Add
             | Keyword::Sub
@@ -140,16 +159,6 @@ fn interpret_tokens(src: &[Token]) -> Option<Vec<Syntax>> {
                     src.clone(),
                     Item::try_from(src_a.clone()).unwrap(),
                     dst.clone(),
-                ))],
-                interpret_tokens(rest)?,
-            ))
-        }
-        [Token::Keyword(cmp @ (Keyword::Jez | Keyword::Jnz)), Token::Address(cnd), jump @ (Token::Address(_) | Token::Literal(_)), Token::SemiColon, rest @ ..] => {
-            Some(add_vecs(
-                vec![Syntax::Instruction(Instruction::Jcmpz(
-                    *cmp == Keyword::Jez,
-                    cnd.clone(),
-                    Item::try_from(jump.clone()).unwrap(),
                 ))],
                 interpret_tokens(rest)?,
             ))
