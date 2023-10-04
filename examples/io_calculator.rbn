@@ -1,0 +1,10 @@
+fn print(string_location) {
+    write(1, 18);
+    while (*string_location != 0) {
+        write(*string_location, 0);
+        string_location += 1;
+        yield();
+    }
+    write(*string_location, 0);
+    yield();
+}

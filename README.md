@@ -16,7 +16,7 @@ first nibble: operation
 - 7: LE
 - 8: GT
 - 9: GE
-- A: NOT (special)
+- A: PTR (special)
 - B: AND
 - C: OR
 - D: XOR
@@ -60,9 +60,9 @@ second nibble: mode
 - 6: JEZ &CND #LIT
 - 7: JNZ &CND &SRC
 - 8: JNZ &CND #LIT
-- 9: DEREF &SRC, &DEST
-- A: MOVPTR &SRC, &DEST
-- B: MOVPTR #LIT, &DEST
+- 9: ?
+- A: ?
+- B: ?
 - C: ?
 - D: third nibble is mode, fourth nibble is first arg
 - E: third nibble is mode, fourth nibble is second arg
@@ -70,15 +70,25 @@ second nibble: mode
 
 third nibble: first arg / fourth nibble: second arg
 
-### NOT
+### PTR
 
 second nibble: mode
-- 0: NOT &SRC
-- 1: NOT &SRC, &DST
-- 2: mode 0, but the arg is another word
-- 3: mode 1, third nibble is &SRC, &DST is another word
-- 4: mode 1, third nibble is &DST, &SRC is another word
-- 5: mode 1, &SRC and &DST are additional words
+- 0: PTRREAD &SRC
+- 1: PTRREAD &SRC, &DST
+- 2: PTRWRITE &SRC, &DST
+- 3: PTRWRITE #LIT, &DST
+- 4: ?
+- 5: ?
+- 6: ?
+- 7: ?
+- 8: ?
+- 9: ?
+- A: ?
+- B: ?
+- C: ?
+- D: third nibble is mode, fourth nibble is first arg
+- E: third nibble is mode, fourth nibble is second arg
+- F: third nibble is mode, fourth nibble is unused
 
 ### Comparisons
 
