@@ -17,6 +17,9 @@ enum SubCommand {
     Run {
         /// file to load bytecode from
         filename: String,
+        /// print the computer's memory at each stage of execution
+        #[clap(short, long)]
+        debug: bool,
     },
     /// compile an assembly program to bytecode
     CompileAsm {
@@ -33,7 +36,7 @@ fn main() {
     let args = Args::parse();
     println!("{args:?}");
     match args.subcommand {
-        SubCommand::Run { filename } => {
+        SubCommand::Run { debug, filename } => {
             let read_file: Vec<u16> = fs::read(filename)
                 .unwrap()
                 .chunks(2)
@@ -45,7 +48,11 @@ fn main() {
             let mut comp = ComputerIO::new(CPU::new());
             comp.insert_data(PROGRAM_LOCATION, &read_file);
             comp.set_mem(CPU::INSTRUCTION_PTR, PROGRAM_LOCATION);
-            comp.until_yield();
+            if debug {
+                comp.debug_until_yield();
+            } else {
+                comp.until_yield();
+            }
         }
         SubCommand::CompileAsm {
             source,
