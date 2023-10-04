@@ -57,7 +57,27 @@ pub enum Token {
 }
 
 fn lex(src: &str) -> Option<Vec<Token>> {
-    src.split_whitespace()
+    // apply string literals
+    let mut stringparts = src.split('"');
+    let mut string = String::with_capacity(src.len());
+    loop {
+        let Some(code) = stringparts.next() else { break };
+        string.push_str(code);
+        let Some(lit) = stringparts.next() else { break };
+        for char in lit.chars() {
+            string.push('#');
+            string.push_str(&format!(
+                "{:X}",
+                u16::try_from(char as u32).unwrap_or(0xFFFE)
+            ));
+            string.push(';');
+            string.push(' ');
+        }
+        string.push_str("#0; ");
+    }
+    // get actual tokens
+    string
+        .split_whitespace()
         .map(|str| {
             let (str, is_semicolon) = str
                 .strip_suffix(';')

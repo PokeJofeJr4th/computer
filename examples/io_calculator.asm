@@ -1,6 +1,6 @@
 MOV #first_number_buffer &number_buffer;
+MOV #second_input &second_input_buf;
 :get_input
-MOV #1 &12;
 MOV &number_buffer &string_location;
 MOV #read_input &callback_location;
 JMP #print;
@@ -10,33 +10,31 @@ MOV #input_buffer r3;
 :read_input_loop
 YIELD;
 JEZ r0 #parse;
-JLT r0 #30 #read_input;
-JGT r0 #39 #read_input;
+JLT r0 #30 #read_input_loop;
+JGT r0 #39 #read_input_loop;
 MOVPTR r0 r3;
 ADD #1 r3;
 JMP #read_input_loop;
 :parse
 MOV #1 r1;
-SUB #1 r3;
 :parse_loop
+SUB #1 r3;
 DEREF r3 r2;
-JEZ r2 &second_input;
+JEZ r2 &second_input_buf;
 JLT r2 #30 #parse_loop;
 JGT r2 #39 #end;
 SUB #30 r2;
 MUL r1 r2;
 ADD r2 r0;
 MUL #A r1;
-SUB #1 r3;
 JMP #parse_loop;
 :second_input
 MOV r0 rF;
-MOV #math &second_input;
+MOV #math &second_input_buf;
 MOV #second_number_buffer &number_buffer;
 JMP #get_input;
 :math
 MOV r0 rE;
-MOV #1 &12;
 MOV #operation_buffer &string_location;
 MOV #math_loop &callback_location;
 JMP #print;
@@ -44,11 +42,11 @@ JMP #print;
 MOV #2 &12;
 YIELD;
 JEZ r0 #end;
-JEQ r0 #2B #add;
+JEQ r0 #2B #_add;
 JEQ r0 #2D #sub;
 JEQ r0 #2A #mul;
 JMP #math_loop;
-:add
+:_add
 ADD rE rF;
 JMP #after_math;
 :sub
@@ -95,18 +93,18 @@ JMP &callback_location;
 RESERVE #1;
 :callback_location
 RESERVE #1;
-:second_input
+:second_input_buf
 RESERVE #1;
 :number_buffer
-RESERVE #1;
+RESERVE #2;
 :input_buffer
 RESERVE #100;
 :first_number_buffer
-RESERVE #100;
+"Enter the first number:"
 :second_number_buffer
-RESERVE #100;
+"Enter the second number:"
 :operation_buffer
-RESERVE #100;
+"Enter the operation (+, -, or *):"
 :pow_10
 #2710;
 #03E8;
