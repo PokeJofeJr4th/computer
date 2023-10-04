@@ -61,8 +61,8 @@ second nibble: mode
 - 7: JNZ &CND &SRC
 - 8: JNZ &CND #LIT
 - 9: DEREF &SRC, &DEST
-- A: ?
-- B: ?
+- A: MOVPTR &SRC, &DEST
+- B: MOVPTR #LIT, &DEST
 - C: ?
 - D: third nibble is mode, fourth nibble is first arg
 - E: third nibble is mode, fourth nibble is second arg
