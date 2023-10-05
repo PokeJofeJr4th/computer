@@ -1,10 +1,20 @@
-use std::iter::Peekable;
+use std::{fmt::Display, iter::Peekable};
 
 use super::types::{Keyword, Token};
 
+#[derive(Debug)]
 pub enum LexError {
     UnexpectedChar(char),
     UnexpectedEOF,
+}
+
+impl Display for LexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnexpectedChar(c) => write!(f, "Unexpected character {c:?}"),
+            Self::UnexpectedEOF => write!(f, "Unexpected end of file"),
+        }
+    }
 }
 
 pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
@@ -16,14 +26,42 @@ pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
     Ok(tokens)
 }
 
+macro_rules! multi_character_pattern {
+    ($chars:ident $just:expr; {$($char:expr => $eq:expr),*}) => {
+        match $chars.peek() {
+            $(Some($char) => {
+                $chars.next();
+                $eq
+            })*
+            _ => $just,
+        }
+    };
+}
+
 fn lex_inner<I: Iterator<Item = char>>(
     chars: &mut Peekable<I>,
     tokens: &mut Vec<Token>,
 ) -> Result<(), LexError> {
     tokens.push(match chars.next() {
-        Some('=') => Token::Eq,
-        Some('+') => Token::Plus,
-        Some('-') => Token::Tack,
+        Some('=') => multi_character_pattern!(chars Token::Eq; {'=' => Token::Eqeq}),
+        Some('<') => {
+            multi_character_pattern!(chars Token::Lt; {'=' => Token::LtEq, '<' => Token::Shl})
+        }
+        Some('>') => {
+            multi_character_pattern!(chars Token::Gt; {'=' => Token::GtEq, '>' => Token::Shr})
+        }
+        Some('!') => multi_character_pattern!(chars Token::Bang; {'=' => Token::BangEq}),
+        Some('+') => multi_character_pattern!(chars Token::Plus; {'=' => Token::PlusEq}),
+        Some('-') => multi_character_pattern!(chars Token::Tack; {'=' => Token::TackEq}),
+        Some('&') => {
+            multi_character_pattern!(chars Token::BitAnd; {'&' => Token::And, '=' => Token::AndEq})
+        }
+        Some('|') => {
+            multi_character_pattern!(chars Token::BitOr; {'|' => Token::Or, '=' => Token::OrEq})
+        }
+        Some('^') => {
+            multi_character_pattern!(chars Token::BitXor; {'^' => Token::Xor, '=' => Token::XorEq})
+        }
         Some('*') => Token::Star,
         Some(',') => Token::Comma,
         Some(';') => Token::SemiColon,

@@ -3,7 +3,7 @@
 use std::fs;
 
 use clap::{Parser, Subcommand};
-use computer::{compile_asm, Computer, ComputerDebug, ComputerIO, CPU};
+use computer::{compile_asm, pipe as robin_pipe, Computer, ComputerDebug, ComputerIO, CPU};
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -26,6 +26,13 @@ enum SubCommand {
         /// file to load assembly from
         source: String,
         /// file to output bytecode
+        destination: String,
+    },
+    /// compile Robin language to assembly
+    CompileRobin {
+        /// file to load Robin from
+        source: String,
+        /// file to save ASM to
         destination: String,
     },
 }
@@ -59,14 +66,23 @@ fn main() {
             destination,
         } => {
             let read_file = fs::read_to_string(source).unwrap();
-            let asm = compile_asm(&read_file).unwrap();
+            let machine_code = compile_asm(&read_file).unwrap();
             fs::write(
                 destination,
-                asm.into_iter()
-                    .flat_map(|b| vec![(b >> 8) as u8, b as u8])
+                machine_code
+                    .into_iter()
+                    .flat_map(|b| [(b >> 8) as u8, b as u8])
                     .collect::<Vec<u8>>(),
             )
             .unwrap();
+        }
+        SubCommand::CompileRobin {
+            source,
+            destination,
+        } => {
+            let read_file = fs::read_to_string(source).unwrap();
+            let asm = robin_pipe(&read_file).unwrap();
+            println!("{asm:#?}");
         }
     }
 }

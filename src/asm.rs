@@ -6,6 +6,8 @@ use self::instruction::Value;
 mod instruction;
 mod syntax;
 
+pub use syntax::Syntax;
+
 #[derive(Debug)]
 pub enum ASMError {
     TokenError,

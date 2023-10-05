@@ -13,3 +13,4 @@ pub use asm::compile_asm;
 pub use computer::{Computer, ComputerDebug};
 pub use cpu::CPU;
 pub use stdio::ComputerIO;
+pub use robin::pipe;
