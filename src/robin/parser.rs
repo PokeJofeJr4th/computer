@@ -146,9 +146,11 @@ fn inner_parse_statement<I: Iterator<Item = Token>>(
 ) -> Result<Statement, ParseError> {
     match src.next() {
         Some(Token::Ident(ident)) => match src.next() {
-            Some(tok) if AssignOp::try_from(tok.clone()).is_ok() => {
-                Ok(Statement::Assignment(ident, inner_parse_expr(src)?))
-            }
+            Some(tok) if AssignOp::try_from(tok.clone()).is_ok() => Ok(Statement::Assignment(
+                ident,
+                AssignOp::try_from(tok).unwrap(),
+                inner_parse_expr(src)?,
+            )),
             Some(Token::LParen) => {
                 if src.peek() == Some(&Token::RParen) {
                     src.next();

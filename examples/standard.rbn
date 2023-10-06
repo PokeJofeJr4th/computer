@@ -1,7 +1,3 @@
-fn yield() {
-    write(1, 16);
-}
-
 fn print(string_location) {
     write(1, 18);
     while (*string_location != 0) {

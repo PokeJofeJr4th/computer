@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, rc::Rc};
 
 use crate::CPU;
 
@@ -108,7 +108,7 @@ pub enum Item {
 }
 
 impl Item {
-    pub fn with_labels(self, labels: &BTreeMap<String, u16>) -> Self {
+    pub fn with_labels(self, labels: &BTreeMap<Rc<str>, u16>) -> Self {
         match self {
             Self::Address(addr) => Self::Address(addr.with_labels(labels)),
             Self::Literal(lit) => Self::Literal(lit.with_labels(labels)),
@@ -137,7 +137,7 @@ impl TryFrom<Token> for Item {
 #[derive(Clone, Debug)]
 pub enum Value {
     Given(u16),
-    Label(String),
+    Label(Rc<str>),
 }
 
 impl Default for Value {
@@ -154,7 +154,7 @@ impl Value {
         }
     }
 
-    pub fn with_labels(self, labels: &BTreeMap<String, u16>) -> Self {
+    pub fn with_labels(self, labels: &BTreeMap<Rc<str>, u16>) -> Self {
         match self {
             Self::Given(num) => Self::Given(num),
             Self::Label(label) => Self::Given(
@@ -398,7 +398,7 @@ impl Instruction {
         }
     }
 
-    pub fn with_labels(self, labels: &BTreeMap<String, u16>) -> Self {
+    pub fn with_labels(self, labels: &BTreeMap<Rc<str>, u16>) -> Self {
         match self {
             Self::Yield => Self::Yield,
             Self::Mov(a, b) => Self::Mov(a.with_labels(labels), b.with_labels(labels)),

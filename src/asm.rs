@@ -1,11 +1,10 @@
-use std::str::FromStr;
+use std::{rc::Rc, str::FromStr};
 use strum::EnumString;
-
-use self::instruction::Value;
 
 mod instruction;
 mod syntax;
 
+pub use instruction::{CmpOp, Instruction, Item, MathOp, Value};
 pub use syntax::Syntax;
 
 #[derive(Debug)]
@@ -53,7 +52,7 @@ pub enum Token {
     Keyword(Keyword),
     Literal(Value),
     Address(Value),
-    Label(String),
+    Label(Rc<str>),
     SemiColon,
 }
 
@@ -99,7 +98,7 @@ fn lex(src: &str) -> Option<Vec<Token>> {
                                                     .map_or_else(
                                                         |_| {
                                                             Some(Token::Literal(Value::Label(
-                                                                String::from(str),
+                                                                Rc::from(str),
                                                             )))
                                                         },
                                                         Some,
@@ -120,13 +119,13 @@ fn lex(src: &str) -> Option<Vec<Token>> {
                                     .map(Value::Given)
                                     .map(Token::Address)
                                     .map_or_else(
-                                        |_| Some(Token::Address(Value::Label(String::from(str)))),
+                                        |_| Some(Token::Address(Value::Label(Rc::from(str)))),
                                         Some,
                                     )
                             },
                         )
                     },
-                    |str| Some(Token::Label(String::from(str))),
+                    |str| Some(Token::Label(Rc::from(str))),
                 )
                 .map(|tok| {
                     if is_semicolon {

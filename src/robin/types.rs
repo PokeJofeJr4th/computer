@@ -2,6 +2,8 @@ use std::rc::Rc;
 
 use strum::EnumString;
 
+use crate::asm::MathOp;
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     Ident(Rc<str>),
@@ -59,26 +61,26 @@ pub enum TopLevelSyntax {
     Constant(Rc<str>, Expression),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum Statement {
     Declaration(Rc<str>, Option<Expression>),
-    Assignment(Rc<str>, Expression),
+    Assignment(Rc<str>, AssignOp, Expression),
     FunctionCall(Rc<str>, Vec<Expression>),
     While(Expression, Vec<Statement>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum Expression {
     Ident(Rc<str>),
     Int(u16),
-    BinaryOp(Box<Expression>, BinaryOperation, Box<Expression>),
+    BinaryOp(Box<Expression>, BinaryOp, Box<Expression>),
     Not(Box<Expression>),
     Deref(Box<Expression>),
     FunctionCall(Rc<str>, Vec<Expression>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BinaryOperation {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BinaryOp {
     Add,
     Sub,
     Mul,
@@ -98,7 +100,7 @@ pub enum BinaryOperation {
     Shr,
 }
 
-impl TryFrom<Token> for BinaryOperation {
+impl TryFrom<Token> for BinaryOp {
     type Error = Token;
     fn try_from(value: Token) -> Result<Self, Self::Error> {
         match value {
@@ -124,6 +126,22 @@ impl TryFrom<Token> for BinaryOperation {
     }
 }
 
+impl TryFrom<BinaryOp> for crate::asm::CmpOp {
+    type Error = BinaryOp;
+    fn try_from(value: BinaryOp) -> Result<Self, Self::Error> {
+        match value {
+            BinaryOp::Eq => Ok(Self::Eq),
+            BinaryOp::Ne => Ok(Self::Ne),
+            BinaryOp::Gt => Ok(Self::Gt),
+            BinaryOp::Ge => Ok(Self::Ge),
+            BinaryOp::Lt => Ok(Self::Lt),
+            BinaryOp::Le => Ok(Self::Le),
+            value => Err(value),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AssignOp {
     Eq,
     Add,
@@ -134,6 +152,23 @@ pub enum AssignOp {
     Xor,
     Shl,
     Shr,
+}
+
+impl TryFrom<AssignOp> for MathOp {
+    type Error = AssignOp;
+    fn try_from(value: AssignOp) -> Result<Self, Self::Error> {
+        match value {
+            AssignOp::Add => Ok(Self::Add),
+            AssignOp::Sub => Ok(Self::Sub),
+            AssignOp::Mul => Ok(Self::Mul),
+            AssignOp::And => Ok(Self::And),
+            AssignOp::Or => Ok(Self::Or),
+            AssignOp::Xor => Ok(Self::Xor),
+            AssignOp::Shl => Ok(Self::Shl),
+            AssignOp::Shr => Ok(Self::Shr),
+            value => Err(value),
+        }
+    }
 }
 
 impl TryFrom<Token> for AssignOp {

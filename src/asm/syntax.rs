@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{asm::instruction::CmpOp, utils::print_and_ret};
 
@@ -9,7 +9,7 @@ use super::{
 
 #[derive(Debug)]
 pub enum Syntax {
-    Label(String),
+    Label(Rc<str>),
     Instruction(Instruction),
     Literal(u16),
     Reserve(u16),
