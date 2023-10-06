@@ -6,7 +6,7 @@ use crate::{
     utils::{get_hash, Either},
 };
 
-use super::types::{Expression, Statement, TopLevelSyntax};
+use super::types::{AssignOp, BinaryOp, BlockType, Expression, Statement, TopLevelSyntax};
 
 struct Scope<'a> {
     globals: &'a BTreeMap<Rc<str>, Value>,
@@ -128,9 +128,10 @@ fn compile_fn(
     )));
     out.push(Either::Left(Syntax::Reserve(1)));
     out.push(Either::Left(Syntax::Label(format!("_fn_{name}").into())));
+    let mut rolling_hash = get_hash(&body);
     for stmt in body {
-        let hash = get_hash(&stmt);
-        out.extend(compile_statement(stmt, &scope, hash)?);
+        rolling_hash = get_hash((&stmt, rolling_hash));
+        out.extend(compile_statement(stmt, &scope, rolling_hash)?);
     }
     out.push(Either::Left(Syntax::Literal(0x0E40)));
     out.push(Either::Left(Syntax::Label(
@@ -140,7 +141,7 @@ fn compile_fn(
     Ok(out)
 }
 
-#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::unnecessary_wraps, clippy::too_many_lines)]
 fn compile_statement(
     stmt: Statement,
     scope: &Scope,
@@ -178,6 +179,23 @@ fn compile_statement(
                 Instruction::Ptrread(variable, Value::Given(src)),
             ))])
         }
+        Statement::FunctionCall(name, args)
+            if &*name == "read"
+                && args.len() == 2
+                && matches!(&args[0], Expression::Int(_))
+                && 'guard: {
+                    let Expression::UnaryOp(UnaryOp::Deref, deref) = &args[1] else { break 'guard false };
+                    matches!(&**deref, Expression::Ident(_))
+                } =>
+        {
+            let Expression::UnaryOp(UnaryOp::Deref, ref deref) = args[1] else { unreachable!()};
+            let Expression::Ident(variable) = &**deref else { unreachable!() };
+            let Some(variable) = scope.get(variable) else { return Err(Error::InvalidIdentifier(variable.clone()))};
+            let Expression::Int(src) = args[0] else {unreachable!()};
+            Ok(vec![Either::Left(Syntax::Instruction(
+                Instruction::Ptrwrite(Item::Address(Value::Given(src)), variable),
+            ))])
+        }
         Statement::FunctionCall(func, args) => {
             let Some(parameters) = scope.get_fn(&func) else { return Err(Error::InvalidIdentifier(func))};
             if parameters.len() != args.len() {
@@ -196,58 +214,115 @@ fn compile_statement(
                     Value::Label(format!("_fn_{func}_arg_{arg}").into()),
                 )));
             }
+            let ret_hash: Rc<str> = format!("_call_{func}_ret_{hash:x}").into();
             function_call.push(Syntax::Instruction(Instruction::Mov(
-                Item::Literal(Value::Label(format!("_call_{func}_ret_{hash:x}").into())),
+                Item::Literal(Value::Label(ret_hash.clone())),
                 Value::Label(format!("_fn_{func}_ret_to").into()),
             )));
             function_call.push(Syntax::Instruction(Instruction::Jmp(Item::Literal(
                 Value::Label(format!("_fn_{func}").into()),
             ))));
-            function_call.push(Syntax::Label(format!("_call_{func}_ret_{hash:x}").into()));
+            function_call.push(Syntax::Label(ret_hash));
             Ok(function_call.into_iter().map(Either::Left).collect())
+        }
+        Statement::Assignment(lhs, AssignOp::Eq, rhs) => {
+            let (mut code, src) = value_from(rhs, scope, 1)?;
+            let Some(dst) = scope.get(&lhs) else { return Err(Error::InvalidIdentifier(lhs))};
+            code.push(Syntax::Instruction(Instruction::Mov(src, dst)));
+            Ok(code.into_iter().map(Either::Left).collect())
         }
         Statement::Assignment(lhs, op, rhs) if crate::asm::MathOp::try_from(op).is_ok() => {
             let math_op = crate::asm::MathOp::try_from(op).unwrap();
-            let (mut code, src) = value_from(rhs, scope, 0)?;
+            let (mut code, src) = value_from(rhs, scope, 1)?;
             let Some(dst) = scope.get(&lhs) else { return Err(Error::InvalidIdentifier(lhs)) };
             code.push(Syntax::Instruction(Instruction::MathBinary(
                 math_op, src, dst,
             )));
             Ok(code.into_iter().map(Either::Left).collect())
         }
-        Statement::While(condition, body) => {
-            let hash: Rc<str> = format!("_while_{:x}", get_hash((&condition, &body))).into();
+        Statement::Block(block_type, condition, body) => {
+            let hash: Rc<str> = format!(
+                "_{}_{:x}",
+                block_type.as_ref(),
+                get_hash((&condition, &body))
+            )
+            .into();
             let tail_hash: Rc<str> = format!("{hash}_tail").into();
             let mut output = Vec::new();
-            output.push(Either::Left(Syntax::Instruction(Instruction::Jmp(
-                Item::Literal(Value::Label(tail_hash.clone())),
-            ))));
+            let jcmp_hash = get_hash((&condition, &hash));
+            if block_type == BlockType::While {
+                output.push(Either::Left(Syntax::Instruction(Instruction::Jmp(
+                    Item::Literal(Value::Label(tail_hash.clone())),
+                ))));
+            } else if block_type == BlockType::If {
+                // !JMP #tail
+                output.extend(
+                    compile_jcmp(
+                        Expression::UnaryOp(UnaryOp::Not, Box::new(condition.clone())),
+                        Item::Literal(Value::Label(tail_hash.clone())),
+                        scope,
+                        jcmp_hash,
+                    )?
+                    .into_iter()
+                    .map(Either::Left),
+                );
+            }
             output.push(Either::Left(Syntax::Label(hash.clone())));
             for stmt in body {
-                let hash = get_hash(&stmt);
+                let hash = get_hash((&hash, &stmt));
                 output.extend(compile_statement(stmt, scope, hash)?);
             }
             output.push(Either::Left(Syntax::Label(tail_hash)));
-            output.extend(
-                compile_jcmp(condition, Item::Literal(Value::Label(hash)), scope)?
+            if block_type == BlockType::While {
+                output.extend(
+                    compile_jcmp(
+                        condition,
+                        Item::Literal(Value::Label(hash)),
+                        scope,
+                        jcmp_hash,
+                    )?
                     .into_iter()
                     .map(Either::Left),
-            );
+                );
+            }
             Ok(output)
         }
         other => Ok(vec![Either::Right(other)]),
     }
 }
 
-fn compile_jcmp(cond: Expression, jmp: Item, scope: &Scope) -> Result<Vec<Syntax>, Error> {
+fn compile_jcmp(
+    cond: Expression,
+    jmp: Item,
+    scope: &Scope,
+    hash: u64,
+) -> Result<Vec<Syntax>, Error> {
     match cond {
+        Expression::UnaryOp(UnaryOp::Not, inner) if matches!(&*inner, Expression::BinaryOp(..)) => {
+            let Expression::BinaryOp(lhs, op, rhs) = *inner else { unreachable!() };
+            let cmp_op = crate::asm::CmpOp::try_from(op).map_err(|_| {
+                Error::CompilationFailed(format!("Couldn't turn `{op:?}` into a comparison"))
+            })?;
+            compile_jcmp(
+                Expression::BinaryOp(lhs, cmp_op.inverse().into(), rhs),
+                jmp,
+                scope,
+                hash,
+            )
+        }
+        Expression::UnaryOp(UnaryOp::Not, inner)
+            if matches!(&*inner, Expression::UnaryOp(UnaryOp::Not, _)) =>
+        {
+            let Expression::UnaryOp(UnaryOp::Not, inner) = *inner else { unreachable!() };
+            compile_jcmp(*inner, jmp, scope, hash)
+        }
         Expression::BinaryOp(lhs, op, rhs)
             if crate::asm::CmpOp::try_from(op).is_ok()
-                && value_from(*lhs.clone(), scope, 0).is_ok()
-                && value_from(*rhs.clone(), scope, 1).is_ok() =>
+                && value_from(*lhs.clone(), scope, 1).is_ok()
+                && value_from(*rhs.clone(), scope, 3).is_ok() =>
         {
-            let lhs = value_from(*lhs, scope, 0)?;
-            let rhs = value_from(*rhs, scope, 1)?;
+            let lhs = value_from(*lhs, scope, 1)?;
+            let rhs = value_from(*rhs, scope, 3)?;
             let cmp_op = crate::asm::CmpOp::try_from(op).unwrap();
             let mut syn = lhs.0;
             syn.extend(rhs.0);
@@ -256,6 +331,21 @@ fn compile_jcmp(cond: Expression, jmp: Item, scope: &Scope) -> Result<Vec<Syntax
             syn.push(Syntax::Instruction(Instruction::JmpCmp(
                 cmp_op, lhs, rhs, jmp,
             )));
+            Ok(syn)
+        }
+        Expression::BinaryOp(lhs, BinaryOp::And, rhs) => {
+            let lhs_hash = get_hash((hash, &lhs));
+            let rhs_hash = get_hash((hash, &rhs));
+            let else_hash: Rc<str> = format!("_else_{hash:x}").into();
+            let mut syn = Vec::new();
+            syn.extend(compile_jcmp(
+                Expression::UnaryOp(UnaryOp::Not, lhs),
+                Item::Literal(Value::Label(else_hash.clone())),
+                scope,
+                lhs_hash,
+            )?);
+            syn.extend(compile_jcmp(*rhs, jmp, scope, rhs_hash)?);
+            syn.push(Syntax::Label(else_hash));
             Ok(syn)
         }
         cond => Err(Error::InvalidExpression(cond)),

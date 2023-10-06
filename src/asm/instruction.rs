@@ -129,6 +129,17 @@ impl CmpOp {
             Self::Ge => 0x9000,
         }
     }
+    
+    pub const fn inverse(self) -> Self {
+        match self {
+            Self::Eq => Self::Ne,
+            Self::Ne => Self::Eq,
+            Self::Lt => Self::Ge,
+            Self::Le => Self::Gt,
+            Self::Gt => Self::Le,
+            Self::Ge => Self::Lt,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -1,6 +1,8 @@
 use std::{fmt::Display, iter::Peekable};
 
-use super::types::{AssignOp, Expression, Keyword, Statement, Token, TopLevelSyntax, UnaryOp};
+use super::types::{
+    AssignOp, BlockType, Expression, Keyword, Statement, Token, TopLevelSyntax, UnaryOp,
+};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -212,10 +214,11 @@ fn inner_parse_statement<I: Iterator<Item = Token>>(
             )),
             _ => Err(ParseError::UnexpectedEOF),
         },
-        Some(Token::Keyword(Keyword::While)) => {
+        Some(Token::Keyword(kw)) if BlockType::try_from(kw).is_ok() => {
             let cond = inner_parse_expr_greedy(src, 0)?;
             let body = inner_parse_block(src)?;
-            Ok(Statement::While(cond, body))
+            let block_type = BlockType::try_from(kw).unwrap();
+            Ok(Statement::Block(block_type, cond, body))
         }
         Some(other) => Err(ParseError::UnexpectedTokenExpectedStr(
             other,

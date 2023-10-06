@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use strum::EnumString;
+use strum::{EnumString, AsRefStr};
 
-use crate::asm::MathOp;
+use crate::asm::{CmpOp, MathOp};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
@@ -66,7 +66,7 @@ pub enum Statement {
     Declaration(Rc<str>, Option<Expression>),
     Assignment(Rc<str>, AssignOp, Expression),
     FunctionCall(Rc<str>, Vec<Expression>),
-    While(Expression, Vec<Statement>),
+    Block(BlockType, Expression, Vec<Statement>),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -77,6 +77,24 @@ pub enum Expression {
     BinaryOp(Box<Expression>, BinaryOp, Box<Expression>),
     UnaryOp(UnaryOp, Box<Expression>),
     FunctionCall(Rc<str>, Vec<Expression>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+pub enum BlockType {
+    While,
+    If,
+}
+
+impl TryFrom<Keyword> for BlockType {
+    type Error = Keyword;
+    fn try_from(value: Keyword) -> Result<Self, Self::Error> {
+        match value {
+            Keyword::While => Ok(Self::While),
+            Keyword::If => Ok(Self::If),
+            value => Err(value),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -156,6 +174,19 @@ impl TryFrom<BinaryOp> for crate::asm::CmpOp {
             BinaryOp::Lt => Ok(Self::Lt),
             BinaryOp::Le => Ok(Self::Le),
             value => Err(value),
+        }
+    }
+}
+
+impl From<CmpOp> for BinaryOp {
+    fn from(value: CmpOp) -> Self {
+        match value {
+            CmpOp::Eq => Self::Eq,
+            CmpOp::Ne => Self::Ne,
+            CmpOp::Lt => Self::Lt,
+            CmpOp::Le => Self::Le,
+            CmpOp::Gt => Self::Gt,
+            CmpOp::Ge => Self::Ge,
         }
     }
 }

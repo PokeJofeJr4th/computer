@@ -9,10 +9,33 @@ fn print(string_location) {
     yield();
 }
 
+fn input(buffer, capacity) {
+    write(2, 18);
+    yield();
+    while (capacity > 0) {
+        capacity -= 1;
+        read(0, *buffer);
+        if (*buffer != 0) {
+            yield();
+        };
+        if (*buffer == 0) {
+            capacity = 0;
+        };
+        buffer += 1;
+    };
+    while (*capacity != 0) {
+        yield();
+    };
+}
+
 const hello_world = "Hello, World!";
 const wololo = "Wololo!!";
+const input_buffer = "          ";
 
 fn main() {
     print(&hello_world);
     print(&wololo);
+    input(&input_buffer, 10);
+    print(&input_buffer);
+    yield();
 }
