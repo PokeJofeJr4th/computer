@@ -8,3 +8,11 @@ fn print(string_location) {
     write(0, 0);
     yield();
 }
+
+const hello_world = "Hello, World!";
+const wololo = "Wololo!!";
+
+fn main() {
+    print(&hello_world);
+    print(&wololo);
+}

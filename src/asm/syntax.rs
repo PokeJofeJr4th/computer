@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, fmt::Display, rc::Rc};
 
 use crate::{asm::instruction::CmpOp, utils::print_and_ret};
 
@@ -15,6 +15,17 @@ pub enum Syntax {
     Reserve(u16),
 }
 
+impl Display for Syntax {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Label(label) => write!(f, ":{label}"),
+            Self::Instruction(instr) => write!(f, "{instr}"),
+            Self::Literal(lit) => write!(f, "#{lit:0>4x};"),
+            Self::Reserve(lit) => write!(f, "RESERVE #{lit:0>4x};"),
+        }
+    }
+}
+
 pub fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
     // get the syntax
     let mut statements = Vec::new();
@@ -23,6 +34,7 @@ pub fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
     Ok(interpret_syntax(statements))
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub fn interpret_syntax(src: Vec<Syntax>) -> Vec<u16> {
     // first pass to get location of all the labels
     let mut byte_location: u16 = 0x8000;

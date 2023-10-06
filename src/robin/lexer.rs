@@ -86,7 +86,16 @@ fn lex_inner<I: Iterator<Item = char>>(
             Keyword::try_from(ident_buf.as_ref())
                 .map_or_else(|_| Token::Ident(ident_buf.into()), Token::Keyword)
         }
-        Some('"') => todo!(),
+        Some('"') => {
+            let mut str_buf = String::new();
+            for c in chars.by_ref() {
+                if c == '"' {
+                    break;
+                }
+                str_buf.push(c);
+            }
+            Token::String(str_buf.into())
+        }
         Some(other) => {
             if other.is_whitespace() {
                 return Ok(());

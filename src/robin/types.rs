@@ -72,11 +72,30 @@ pub enum Statement {
 #[derive(Debug, Clone, Hash)]
 pub enum Expression {
     Ident(Rc<str>),
+    String(Rc<str>),
     Int(u16),
     BinaryOp(Box<Expression>, BinaryOp, Box<Expression>),
-    Not(Box<Expression>),
-    Deref(Box<Expression>),
+    UnaryOp(UnaryOp, Box<Expression>),
     FunctionCall(Rc<str>, Vec<Expression>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnaryOp {
+    Not,
+    Deref,
+    Address,
+}
+
+impl TryFrom<Token> for UnaryOp {
+    type Error = Token;
+    fn try_from(value: Token) -> Result<Self, Self::Error> {
+        match value {
+            Token::Bang => Ok(Self::Not),
+            Token::Star => Ok(Self::Deref),
+            Token::BitAnd => Ok(Self::Address),
+            value => Err(value),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -166,7 +185,7 @@ impl TryFrom<AssignOp> for MathOp {
             AssignOp::Xor => Ok(Self::Xor),
             AssignOp::Shl => Ok(Self::Shl),
             AssignOp::Shr => Ok(Self::Shr),
-            value => Err(value),
+            AssignOp::Eq => Err(AssignOp::Eq),
         }
     }
 }

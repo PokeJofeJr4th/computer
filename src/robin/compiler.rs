@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
     asm::{Instruction, Item, Syntax, Value},
+    robin::types::UnaryOp,
     utils::{get_hash, Either},
 };
 
@@ -9,22 +10,30 @@ use super::types::{Expression, Statement, TopLevelSyntax};
 
 struct Scope<'a> {
     globals: &'a BTreeMap<Rc<str>, Value>,
+    functions: &'a BTreeMap<Rc<str>, Vec<Rc<str>>>,
     parameters: &'a BTreeMap<Rc<str>, Value>,
     locals: &'a BTreeMap<Rc<str>, Value>,
 }
 
 impl<'a> Scope<'a> {
-    pub fn get(&self, ident: &str) -> Option<&Value> {
+    pub fn get(&self, ident: &str) -> Option<Value> {
         if let Some(local) = self.locals.get(ident) {
-            return Some(local);
+            return Some(local.clone());
         };
         if let Some(param) = self.parameters.get(ident) {
-            return Some(param);
+            return Some(param.clone());
         };
         if let Some(global) = self.globals.get(ident) {
-            return Some(global);
+            return Some(global.clone());
         };
+        if self.functions.get(ident).is_some() {
+            return Some(Value::Label(ident.into()));
+        }
         None
+    }
+
+    pub fn get_fn(&self, ident: &str) -> Option<Vec<Rc<str>>> {
+        self.functions.get(ident).cloned()
     }
 }
 
@@ -41,27 +50,54 @@ pub fn compile(src: Vec<TopLevelSyntax>) -> Result<Vec<Syntax>, Error> {
     let mut function_signatures = BTreeMap::new();
     let mut function_bodies = BTreeMap::new();
     let mut statics = BTreeMap::new();
+    let mut statics_syntax = Vec::new();
     for syn in src {
         match syn {
             TopLevelSyntax::Function(name, args, body) => {
                 function_signatures.insert(name.clone(), args.clone());
                 function_bodies.insert(name, (args, body));
             }
+            TopLevelSyntax::Constant(name, Expression::String(str)) => {
+                statics.insert(name.clone(), Value::Label(name.clone()));
+                statics_syntax.push(Syntax::Label(name));
+                statics_syntax.extend(crate::asm::string_literal(&str));
+            }
             TopLevelSyntax::Constant(..) => return Err(Error::InvalidSyntax(syn)),
         }
     }
     let mut output = Vec::new();
+    let Some((main_args, main_body)) = function_bodies.remove("main") else {return Err(Error::CompilationFailed(String::from("Missing `main` function")))};
+    if !main_args.is_empty() {
+        return Err(Error::CompilationFailed(String::from(
+            "Main function can't accept arguments",
+        )));
+    }
+    output.extend(compile_fn(
+        &"main".into(),
+        &main_args,
+        main_body,
+        &statics,
+        &function_signatures,
+    )?);
     for (name, (args, body)) in function_bodies {
-        output.extend(compile_fn(&name, &args, body, &statics)?);
+        output.extend(compile_fn(
+            &name,
+            &args,
+            body,
+            &statics,
+            &function_signatures,
+        )?);
     }
     println!("{output:?}");
-    output
+    let mut output = output
         .into_iter()
         .map(Either::left)
         .collect::<Option<Vec<_>>>()
         .ok_or(Error::CompilationFailed(String::from(
             "Not all statements were parsed",
-        )))
+        )))?;
+    output.extend(statics_syntax);
+    Ok(output)
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -70,6 +106,7 @@ fn compile_fn(
     args: &[Rc<str>],
     body: Vec<Statement>,
     statics: &BTreeMap<Rc<str>, Value>,
+    function_signatures: &BTreeMap<Rc<str>, Vec<Rc<str>>>,
 ) -> Result<Vec<Either<Syntax, Statement>>, Error> {
     let mut out = Vec::new();
     let mut args_map = BTreeMap::new();
@@ -84,11 +121,22 @@ fn compile_fn(
         globals: statics,
         parameters: &args_map,
         locals: &locals,
+        functions: function_signatures,
     };
+    out.push(Either::Left(Syntax::Label(
+        format!("_fn_{name}_ret").into(),
+    )));
+    out.push(Either::Left(Syntax::Reserve(1)));
     out.push(Either::Left(Syntax::Label(format!("_fn_{name}").into())));
     for stmt in body {
-        out.extend(compile_statement(stmt, &scope)?);
+        let hash = get_hash(&stmt);
+        out.extend(compile_statement(stmt, &scope, hash)?);
     }
+    out.push(Either::Left(Syntax::Literal(0x0E40)));
+    out.push(Either::Left(Syntax::Label(
+        format!("_fn_{name}_ret_to").into(),
+    )));
+    out.push(Either::Left(Syntax::Literal(0xFFFF)));
     Ok(out)
 }
 
@@ -96,6 +144,7 @@ fn compile_fn(
 fn compile_statement(
     stmt: Statement,
     scope: &Scope,
+    hash: u64,
 ) -> Result<Vec<Either<Syntax, Statement>>, Error> {
     match stmt {
         Statement::FunctionCall(name, args) if &*name == "yield" && args.is_empty() => {
@@ -117,25 +166,50 @@ fn compile_statement(
                 && args.len() == 2
                 && matches!(&args[1], Expression::Int(_))
                 && 'guard: {
-                    let Expression::Deref(deref) = &args[0] else { break 'guard false };
+                    let Expression::UnaryOp(UnaryOp::Deref, deref) = &args[0] else { break 'guard false };
                     matches!(&**deref, Expression::Ident(_))
                 } =>
         {
-            let Expression::Deref(ref deref) = args[0] else { unreachable!()};
+            let Expression::UnaryOp(UnaryOp::Deref, ref deref) = args[0] else { unreachable!()};
             let Expression::Ident(variable) = &**deref else { unreachable!() };
             let Some(variable) = scope.get(variable) else { return Err(Error::InvalidIdentifier(variable.clone()))};
             let Expression::Int(src) = args[1] else {unreachable!()};
             Ok(vec![Either::Left(Syntax::Instruction(
-                Instruction::Ptrwrite(Item::Literal(Value::Given(src)), variable.clone()),
+                Instruction::Ptrread(variable, Value::Given(src)),
             ))])
+        }
+        Statement::FunctionCall(func, args) => {
+            let Some(parameters) = scope.get_fn(&func) else { return Err(Error::InvalidIdentifier(func))};
+            if parameters.len() != args.len() {
+                return Err(Error::CompilationFailed(format!(
+                    "Expected {} argument(s) for {func}; got {}",
+                    parameters.len(),
+                    args.len()
+                )));
+            }
+            let mut function_call = Vec::new();
+            for (expr, arg) in args.into_iter().zip(parameters) {
+                let (syn, value) = value_from(expr, scope, 1)?;
+                function_call.extend(syn);
+                function_call.push(Syntax::Instruction(Instruction::Mov(
+                    value,
+                    Value::Label(format!("_fn_{func}_arg_{arg}").into()),
+                )));
+            }
+            function_call.push(Syntax::Instruction(Instruction::Mov(
+                Item::Literal(Value::Label(format!("_call_{func}_ret_{hash:x}").into())),
+                Value::Label(format!("_fn_{func}_ret_to").into()),
+            )));
+            function_call.push(Syntax::Instruction(Instruction::Jmp(Item::Literal(
+                Value::Label(format!("_fn_{func}").into()),
+            ))));
+            function_call.push(Syntax::Label(format!("_call_{func}_ret_{hash:x}").into()));
+            Ok(function_call.into_iter().map(Either::Left).collect())
         }
         Statement::Assignment(lhs, op, rhs) if crate::asm::MathOp::try_from(op).is_ok() => {
             let math_op = crate::asm::MathOp::try_from(op).unwrap();
             let (mut code, src) = value_from(rhs, scope, 0)?;
-            let dst = match scope.get(&lhs) {
-                Some(val) => val.clone(),
-                None => return Err(Error::InvalidIdentifier(lhs)),
-            };
+            let Some(dst) = scope.get(&lhs) else { return Err(Error::InvalidIdentifier(lhs)) };
             code.push(Syntax::Instruction(Instruction::MathBinary(
                 math_op, src, dst,
             )));
@@ -150,7 +224,8 @@ fn compile_statement(
             ))));
             output.push(Either::Left(Syntax::Label(hash.clone())));
             for stmt in body {
-                output.extend(compile_statement(stmt, scope)?);
+                let hash = get_hash(&stmt);
+                output.extend(compile_statement(stmt, scope, hash)?);
             }
             output.push(Either::Left(Syntax::Label(tail_hash)));
             output.extend(
@@ -194,35 +269,30 @@ fn value_from(
 ) -> Result<(Vec<Syntax>, Item), Error> {
     match expr {
         Expression::Int(i) => Ok((Vec::new(), Item::Literal(Value::Given(i)))),
-        Expression::Deref(inner) if matches!(&*inner, Expression::Ident(_)) => {
+        Expression::UnaryOp(op @ (UnaryOp::Deref | UnaryOp::Address), inner)
+            if matches!(&*inner, Expression::Ident(_)) =>
+        {
             let Expression::Ident(var) = *inner else { unreachable!() };
             let var_value = scope.get(&var);
             let Some(var) = var_value else { return Err(Error::InvalidIdentifier(var))};
-            Ok((
-                vec![Syntax::Instruction(Instruction::Ptrread(
-                    var.clone(),
-                    Value::Given(register),
-                ))],
-                Item::Address(Value::Given(register)),
-            ))
+            if op == UnaryOp::Deref {
+                Ok((
+                    vec![Syntax::Instruction(Instruction::Ptrread(
+                        var,
+                        Value::Given(register),
+                    ))],
+                    Item::Address(Value::Given(register)),
+                ))
+            } else {
+                Ok((Vec::new(), Item::Literal(var)))
+            }
         }
         Expression::Ident(ident) => scope.get(&ident).map_or_else(
             || Err(Error::InvalidIdentifier(ident)),
-            |val| Ok((Vec::new(), Item::Address(val.clone()))),
+            |val| Ok((Vec::new(), Item::Address(val))),
         ),
         expr => Err(Error::CompilationFailed(format!(
             "Couldn't get a value from expression `{expr:?}`"
         ))),
     }
 }
-
-// while (condition) {
-//     do thingk
-// }
-
-// jmp #tail
-// :while
-// do thinkgk
-// :tail
-// jcmp :while
-// :after

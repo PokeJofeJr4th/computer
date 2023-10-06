@@ -1,6 +1,6 @@
 use std::{fmt::Display, iter::Peekable};
 
-use super::types::{AssignOp, Expression, Keyword, Statement, Token, TopLevelSyntax};
+use super::types::{AssignOp, Expression, Keyword, Statement, Token, TopLevelSyntax, UnaryOp};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -34,6 +34,7 @@ pub fn parse(src: Vec<Token>) -> Result<Vec<TopLevelSyntax>, ParseError> {
     Ok(top_level)
 }
 
+#[allow(clippy::too_many_lines)]
 fn inner_parse_top_level<I: Iterator<Item = Token>>(
     src: &mut Peekable<I>,
 ) -> Result<Vec<TopLevelSyntax>, ParseError> {
@@ -100,8 +101,39 @@ fn inner_parse_top_level<I: Iterator<Item = Token>>(
             Ok(vec![TopLevelSyntax::Function(fn_name, args, body)])
         }
         Some(Token::Keyword(Keyword::Const)) => {
-            todo!()
+            let id = match src.next() {
+                Some(Token::Ident(id)) => id,
+                Some(other) => {
+                    return Err(ParseError::UnexpectedTokenExpected(
+                        other,
+                        vec![Token::Ident("identifier".into())],
+                    ))
+                }
+                None => return Err(ParseError::UnexpectedEOF),
+            };
+            match src.next() {
+                Some(Token::Eq) => {}
+                Some(other) => {
+                    return Err(ParseError::UnexpectedTokenExpected(other, vec![Token::Eq]))
+                }
+                None => return Err(ParseError::UnexpectedEOF),
+            }
+            match src.next() {
+                Some(Token::String(string)) => Ok(vec![TopLevelSyntax::Constant(
+                    id,
+                    Expression::String(string),
+                )]),
+                Some(Token::Int(int)) => {
+                    Ok(vec![TopLevelSyntax::Constant(id, Expression::Int(int))])
+                }
+                Some(other) => Err(ParseError::UnexpectedTokenExpected(
+                    other,
+                    vec![Token::String("string literal".into()), Token::Int(u16::MAX)],
+                )),
+                None => Err(ParseError::UnexpectedEOF),
+            }
         }
+        Some(Token::SemiColon) => Ok(Vec::new()),
         Some(other) => Err(ParseError::UnexpectedTokenExpected(
             other,
             vec![Token::Keyword(Keyword::Fn), Token::Keyword(Keyword::Const)],
@@ -233,8 +265,10 @@ fn inner_parse_expr<I: Iterator<Item = Token>>(
     src: &mut Peekable<I>,
 ) -> Result<Expression, ParseError> {
     match src.next() {
-        Some(Token::Star) => Ok(Expression::Deref(Box::new(inner_parse_expr(src)?))),
-        Some(Token::Bang) => Ok(Expression::Not(Box::new(inner_parse_expr(src)?))),
+        Some(tok) if UnaryOp::try_from(tok.clone()).is_ok() => Ok(Expression::UnaryOp(
+            UnaryOp::try_from(tok).unwrap(),
+            Box::new(inner_parse_expr(src)?),
+        )),
         Some(Token::LParen) => {
             let inner = inner_parse_expr_greedy(src, 0)?;
             match src.next() {

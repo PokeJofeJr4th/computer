@@ -36,6 +36,8 @@ pub fn pipe(src: &str) -> Result<Vec<u16>, Error> {
     let syntax = parser::parse(lexer::lex(src)?).map_err(Error::from)?;
     println!("{syntax:?}");
     let syntax = compiler::compile(syntax).map_err(Error::from)?;
-    println!("{syntax:?}");
+    for line in &syntax {
+        println!("{line}");
+    }
     Ok(asm::interpret_syntax(syntax))
 }

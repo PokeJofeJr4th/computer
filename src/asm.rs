@@ -56,6 +56,15 @@ pub enum Token {
     SemiColon,
 }
 
+pub fn string_literal(src: &str) -> Vec<Syntax> {
+    let mut toks = Vec::with_capacity(src.len() + 1);
+    for c in src.chars() {
+        toks.push(Syntax::Literal(u16::try_from(c as u32).unwrap_or(0xFFFE)));
+    }
+    toks.push(Syntax::Literal(0));
+    toks
+}
+
 fn lex(src: &str) -> Option<Vec<Token>> {
     // apply string literals
     let mut stringparts = src.split('"');

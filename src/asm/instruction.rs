@@ -1,4 +1,6 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, fmt::Display, rc::Rc};
+
+use strum::AsRefStr;
 
 use crate::CPU;
 
@@ -19,7 +21,34 @@ pub enum Instruction {
     Cmp(CmpOp, Value, Item, Value),
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Yield => write!(f, "YIELD;"),
+            Self::Mov(src, dst) => write!(f, "MOV {src} &{dst};"),
+            Self::Swp(src, dst) => write!(f, "SWP &{src} &{dst};"),
+            Self::Jmp(dst) => write!(f, "JMP {dst};"),
+            Self::Jcmpz(is_eq, src, jmp) => {
+                write!(f, "J{}Z &{src} {jmp};", if *is_eq { 'E' } else { 'N' })
+            }
+            Self::Ptrread(src, dst) => write!(f, "PTRREAD &{src} &{dst};"),
+            Self::Ptrwrite(src, dst) => write!(f, "PTRWRITE {src} &{dst};"),
+            Self::MathBinary(math_op, src, dst) => write!(f, "{} {src} &{dst};", math_op.as_ref()),
+            Self::MathTernary(math_op, src, srca, dst) => {
+                write!(f, "{} {src} {srca} &{dst}", math_op.as_ref())
+            }
+            Self::JmpCmp(cmp_op, src, srca, jmp) => {
+                write!(f, "J{} &{src} {srca} {jmp};", cmp_op.as_ref())
+            }
+            Self::Cmp(cmp_op, src, srca, dst) => {
+                write!(f, "C{} &{src} {srca} &{dst};", cmp_op.as_ref())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, AsRefStr)]
+#[strum(serialize_all = "UPPERCASE")]
 pub enum MathOp {
     Add,
     Sub,
@@ -63,7 +92,8 @@ impl MathOp {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, AsRefStr)]
+#[strum(serialize_all = "UPPERCASE")]
 pub enum CmpOp {
     Eq,
     Ne,
@@ -107,6 +137,15 @@ pub enum Item {
     Literal(Value),
 }
 
+impl Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Address(v) => write!(f, "&{v}"),
+            Self::Literal(v) => write!(f, "#{v}"),
+        }
+    }
+}
+
 impl Item {
     pub fn with_labels(self, labels: &BTreeMap<Rc<str>, u16>) -> Self {
         match self {
@@ -138,6 +177,15 @@ impl TryFrom<Token> for Item {
 pub enum Value {
     Given(u16),
     Label(Rc<str>),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Given(v) => write!(f, "{v:0>4X}"),
+            Self::Label(v) => write!(f, "{v}"),
+        }
+    }
 }
 
 impl Default for Value {
@@ -270,7 +318,7 @@ impl Instruction {
             Self::Ptrwrite(src, dst) => {
                 let mode = match src {
                     Item::Address(_) => 2,
-                    Item::Literal(_) => 2,
+                    Item::Literal(_) => 3,
                 };
                 match (src.to_number(), dst.to_number()) {
                     (src @ 0..=0xF, dst @ 0..=0xF) => {
@@ -394,7 +442,6 @@ impl Instruction {
                     }
                 }
             }
-            _ => Vec::new(),
         }
     }
 
