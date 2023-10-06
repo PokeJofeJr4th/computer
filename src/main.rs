@@ -82,7 +82,13 @@ fn main() {
         } => {
             let read_file = fs::read_to_string(source).unwrap();
             let asm = robin_pipe(&read_file).unwrap();
-            println!("{asm:#?}");
+            fs::write(
+                destination,
+                asm.into_iter()
+                    .flat_map(|b| [(b >> 8) as u8, b as u8])
+                    .collect::<Vec<u8>>(),
+            )
+            .unwrap();
         }
     }
 }

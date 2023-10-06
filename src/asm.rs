@@ -5,7 +5,7 @@ mod instruction;
 mod syntax;
 
 pub use instruction::{CmpOp, Instruction, Item, MathOp, Value};
-pub use syntax::Syntax;
+pub use syntax::{interpret_syntax, Syntax};
 
 #[derive(Debug)]
 pub enum ASMError {
@@ -142,6 +142,8 @@ fn lex(src: &str) -> Option<Vec<Token>> {
 }
 
 #[allow(clippy::module_name_repetitions)]
+/// # Errors
+/// if the asm syntax is bad
 pub fn compile_asm(src: &str) -> Result<Vec<u16>, ASMError> {
     let toks = lex(src).ok_or(ASMError::TokenError)?;
     // println!("{toks:?}");

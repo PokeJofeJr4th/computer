@@ -1,4 +1,4 @@
-use crate::asm::Syntax;
+use crate::asm;
 
 mod compiler;
 mod lexer;
@@ -30,7 +30,12 @@ impl From<compiler::Error> for Error {
     }
 }
 
-pub fn pipe(src: &str) -> Result<Vec<Syntax>, Error> {
+/// # Errors
+/// If parsing, lexing, or compiling Robin fails
+pub fn pipe(src: &str) -> Result<Vec<u16>, Error> {
     let syntax = parser::parse(lexer::lex(src)?).map_err(Error::from)?;
-    compiler::compile(syntax).map_err(Error::from)
+    println!("{syntax:?}");
+    let syntax = compiler::compile(syntax).map_err(Error::from)?;
+    println!("{syntax:?}");
+    Ok(asm::interpret_syntax(syntax))
 }

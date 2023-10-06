@@ -15,15 +15,19 @@ pub enum Syntax {
     Reserve(u16),
 }
 
-pub(super) fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
+pub fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
     // get the syntax
     let mut statements = Vec::new();
     interpret_tokens(src, &mut statements)?;
     println!("{statements:?}");
+    Ok(interpret_syntax(statements))
+}
+
+pub fn interpret_syntax(src: Vec<Syntax>) -> Vec<u16> {
     // first pass to get location of all the labels
     let mut byte_location: u16 = 0x8000;
     let mut labels = BTreeMap::new();
-    for statement in &statements {
+    for statement in &src {
         match statement {
             Syntax::Label(label) => {
                 labels.insert(label.clone(), byte_location);
@@ -35,15 +39,14 @@ pub(super) fn interpret(src: &[Token]) -> Result<Vec<u16>, Vec<Token>> {
             Syntax::Reserve(len) => byte_location += len,
         }
     }
-    Ok(statements
-        .into_iter()
+    src.into_iter()
         .flat_map(|syn| match syn {
             Syntax::Label(_) => Vec::new(),
             Syntax::Literal(lit) => vec![lit],
             Syntax::Reserve(lit) => vec![0; lit.into()],
             Syntax::Instruction(instr) => instr.with_labels(&labels).to_machine_code(),
         })
-        .collect())
+        .collect()
 }
 
 #[allow(clippy::too_many_lines)]
