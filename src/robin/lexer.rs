@@ -53,6 +53,7 @@ fn lex_inner<I: Iterator<Item = char>>(
         Some('!') => multi_character_pattern!(chars Token::Bang; {'=' => Token::BangEq}),
         Some('+') => multi_character_pattern!(chars Token::Plus; {'=' => Token::PlusEq}),
         Some('-') => multi_character_pattern!(chars Token::Tack; {'=' => Token::TackEq}),
+        Some('*') => multi_character_pattern!(chars Token::Star; {'=' => Token::StarEq}),
         Some('&') => {
             multi_character_pattern!(chars Token::BitAnd; {'&' => Token::And, '=' => Token::AndEq})
         }
@@ -62,7 +63,6 @@ fn lex_inner<I: Iterator<Item = char>>(
         Some('^') => {
             multi_character_pattern!(chars Token::BitXor; {'^' => Token::Xor, '=' => Token::XorEq})
         }
-        Some('*') => Token::Star,
         Some(',') => Token::Comma,
         Some(';') => Token::SemiColon,
         Some('{') => Token::LSquirrely,

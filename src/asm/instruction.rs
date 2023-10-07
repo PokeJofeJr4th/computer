@@ -129,7 +129,7 @@ impl CmpOp {
             Self::Ge => 0x9000,
         }
     }
-    
+
     pub const fn inverse(self) -> Self {
         match self {
             Self::Eq => Self::Ne,
@@ -142,7 +142,7 @@ impl CmpOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Address(Value),
     Literal(Value),
@@ -184,7 +184,7 @@ impl TryFrom<Token> for Item {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
     Given(u16),
     Label(Rc<str>),

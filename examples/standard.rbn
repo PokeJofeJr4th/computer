@@ -1,20 +1,20 @@
 fn print(string_location) {
-    write(1, 18);
+    *18 = 1;
     while (*string_location != 0) {
-        write(*string_location, 0);
+        *0 = *string_location;
         string_location += 1;
         yield();
     };
-    write(0, 0);
+    *0 = 0;
     yield();
 }
 
 fn input(buffer, capacity) {
-    write(2, 18);
+    *18 = 2;
     yield();
     while (capacity > 0) {
         capacity -= 1;
-        read(0, *buffer);
+        *buffer = *0;
         if (*buffer != 0) {
             yield();
         };
@@ -28,9 +28,9 @@ fn input(buffer, capacity) {
     };
 }
 
-const hello_world = "Hello, World!";
-const wololo = "Wololo!!";
-const input_buffer = "          ";
+global hello_world = "Hello, World!";
+global wololo = "Wololo!!";
+global input_buffer = "          ";
 
 fn main() {
     print(&hello_world);

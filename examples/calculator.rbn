@@ -1,0 +1,41 @@
+const ZERO = 48;
+const NINE = 58;
+
+fn get_input(buffer, capacity) {
+    var digit = 0;
+    var start = buffer;
+    *2 = 18;
+    yield();
+    while (capacity > 0) {
+        *buffer = *0;
+        digit = *buffer;
+        if (digit == 0) {
+            capacity = 0;
+        };
+        if (digit >= ZERO && digit <= NINE) {
+            buffer += 1;
+            capacity -= 1;
+        };
+    };
+    while (*0 != 0) {
+        yield();
+    };
+
+    var pow = 1;
+    var output = 0;
+    while (buffer > start) {
+        digit = *buffer;
+        digit -= ZERO;
+        digit *= pow;
+        output += digit;
+        pow *= 10;
+        buffer -= 1;
+    };
+    return output;
+}
+
+global first_input_buffer = "          ";
+
+fn main() {
+    var first_number = get_input(&first_input_buffer, 10);
+}

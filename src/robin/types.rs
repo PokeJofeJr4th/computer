@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use strum::{EnumString, AsRefStr};
+use strum::{AsRefStr, EnumString};
 
 use crate::asm::{CmpOp, MathOp};
 
@@ -49,9 +49,11 @@ pub enum Token {
 #[strum(serialize_all = "lowercase")]
 pub enum Keyword {
     Const,
+    Global,
     Fn,
     If,
-    Int,
+    Return,
+    Var,
     While,
 }
 
@@ -59,12 +61,15 @@ pub enum Keyword {
 pub enum TopLevelSyntax {
     Function(Rc<str>, Vec<Rc<str>>, Vec<Statement>),
     Constant(Rc<str>, Expression),
+    Global(Rc<str>, Expression),
 }
 
 #[derive(Debug, Clone, Hash)]
 pub enum Statement {
     Declaration(Rc<str>, Option<Expression>),
+    Return(Option<Expression>),
     Assignment(Rc<str>, AssignOp, Expression),
+    StarAssignment(Expression, Expression),
     FunctionCall(Rc<str>, Vec<Expression>),
     Block(BlockType, Expression, Vec<Statement>),
 }

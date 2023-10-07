@@ -9,6 +9,7 @@ use crate::{
 use super::types::{AssignOp, BinaryOp, BlockType, Expression, Statement, TopLevelSyntax};
 
 struct Scope<'a> {
+    constants: &'a BTreeMap<Rc<str>, Value>,
     globals: &'a BTreeMap<Rc<str>, Value>,
     functions: &'a BTreeMap<Rc<str>, Vec<Rc<str>>>,
     parameters: &'a BTreeMap<Rc<str>, Value>,
@@ -35,6 +36,10 @@ impl<'a> Scope<'a> {
     pub fn get_fn(&self, ident: &str) -> Option<Vec<Rc<str>>> {
         self.functions.get(ident).cloned()
     }
+
+    pub fn get_constant(&self, ident: &str) -> Option<Value> {
+        self.constants.get(ident).cloned()
+    }
 }
 
 #[derive(Debug)]
@@ -50,6 +55,7 @@ pub fn compile(src: Vec<TopLevelSyntax>) -> Result<Vec<Syntax>, Error> {
     let mut function_signatures = BTreeMap::new();
     let mut function_bodies = BTreeMap::new();
     let mut statics = BTreeMap::new();
+    let mut constants = BTreeMap::new();
     let mut statics_syntax = Vec::new();
     for syn in src {
         match syn {
@@ -57,12 +63,15 @@ pub fn compile(src: Vec<TopLevelSyntax>) -> Result<Vec<Syntax>, Error> {
                 function_signatures.insert(name.clone(), args.clone());
                 function_bodies.insert(name, (args, body));
             }
-            TopLevelSyntax::Constant(name, Expression::String(str)) => {
+            TopLevelSyntax::Global(name, Expression::String(str)) => {
                 statics.insert(name.clone(), Value::Label(name.clone()));
                 statics_syntax.push(Syntax::Label(name));
                 statics_syntax.extend(crate::asm::string_literal(&str));
             }
-            TopLevelSyntax::Constant(..) => return Err(Error::InvalidSyntax(syn)),
+            TopLevelSyntax::Constant(name, Expression::Int(int)) => {
+                constants.insert(name, Value::Given(int));
+            }
+            _ => return Err(Error::InvalidSyntax(syn)),
         }
     }
     let mut output = Vec::new();
@@ -77,6 +86,7 @@ pub fn compile(src: Vec<TopLevelSyntax>) -> Result<Vec<Syntax>, Error> {
         &main_args,
         main_body,
         &statics,
+        &constants,
         &function_signatures,
     )?);
     for (name, (args, body)) in function_bodies {
@@ -85,6 +95,7 @@ pub fn compile(src: Vec<TopLevelSyntax>) -> Result<Vec<Syntax>, Error> {
             &args,
             body,
             &statics,
+            &constants,
             &function_signatures,
         )?);
     }
@@ -106,6 +117,7 @@ fn compile_fn(
     args: &[Rc<str>],
     body: Vec<Statement>,
     statics: &BTreeMap<Rc<str>, Value>,
+    constants: &BTreeMap<Rc<str>, Value>,
     function_signatures: &BTreeMap<Rc<str>, Vec<Rc<str>>>,
 ) -> Result<Vec<Either<Syntax, Statement>>, Error> {
     let mut out = Vec::new();
@@ -116,12 +128,23 @@ fn compile_fn(
         args_map.insert(arg.clone(), Value::Label(arg_label));
         out.push(Either::Left(Syntax::Reserve(1)));
     }
-    let locals = BTreeMap::new();
+    let mut locals = BTreeMap::new();
+    let mut locals_initial = BTreeMap::new();
+    for statement in &body {
+        if let Statement::Declaration(var, value) = statement {
+            locals.insert(
+                var.clone(),
+                Value::Label(format!("_fn_{name}_local_{var}").into()),
+            );
+            locals_initial.insert(var.clone(), value.clone());
+        }
+    }
     let scope = Scope {
         globals: statics,
         parameters: &args_map,
         locals: &locals,
         functions: function_signatures,
+        constants,
     };
     out.push(Either::Left(Syntax::Label(
         format!("_fn_{name}_ret").into(),
@@ -138,6 +161,15 @@ fn compile_fn(
         format!("_fn_{name}_ret_to").into(),
     )));
     out.push(Either::Left(Syntax::Literal(0xFFFF)));
+    for (local, initial) in locals_initial {
+        out.push(Either::Left(Syntax::Label(
+            format!("_fn_{name}_local_{local}").into(),
+        )));
+        match initial {
+            Some(Expression::Int(int)) => out.push(Either::Left(Syntax::Literal(int))),
+            _ => out.push(Either::Left(Syntax::Reserve(1))),
+        }
+    }
     Ok(out)
 }
 
@@ -150,51 +182,6 @@ fn compile_statement(
     match stmt {
         Statement::FunctionCall(name, args) if &*name == "yield" && args.is_empty() => {
             Ok(vec![Either::Left(Syntax::Instruction(Instruction::Yield))])
-        }
-        Statement::FunctionCall(name, args)
-            if &*name == "write"
-                && matches!(&args[..], &[Expression::Int(_), Expression::Int(_)]) =>
-        {
-            let Expression::Int(src) = args[0] else { unreachable!() };
-            let Expression::Int(dst) = args[1] else { unreachable!() };
-            Ok(vec![Either::Left(Syntax::Instruction(Instruction::Mov(
-                Item::Literal(Value::Given(src)),
-                Value::Given(dst),
-            )))])
-        }
-        Statement::FunctionCall(name, args)
-            if &*name == "write"
-                && args.len() == 2
-                && matches!(&args[1], Expression::Int(_))
-                && 'guard: {
-                    let Expression::UnaryOp(UnaryOp::Deref, deref) = &args[0] else { break 'guard false };
-                    matches!(&**deref, Expression::Ident(_))
-                } =>
-        {
-            let Expression::UnaryOp(UnaryOp::Deref, ref deref) = args[0] else { unreachable!()};
-            let Expression::Ident(variable) = &**deref else { unreachable!() };
-            let Some(variable) = scope.get(variable) else { return Err(Error::InvalidIdentifier(variable.clone()))};
-            let Expression::Int(src) = args[1] else {unreachable!()};
-            Ok(vec![Either::Left(Syntax::Instruction(
-                Instruction::Ptrread(variable, Value::Given(src)),
-            ))])
-        }
-        Statement::FunctionCall(name, args)
-            if &*name == "read"
-                && args.len() == 2
-                && matches!(&args[0], Expression::Int(_))
-                && 'guard: {
-                    let Expression::UnaryOp(UnaryOp::Deref, deref) = &args[1] else { break 'guard false };
-                    matches!(&**deref, Expression::Ident(_))
-                } =>
-        {
-            let Expression::UnaryOp(UnaryOp::Deref, ref deref) = args[1] else { unreachable!()};
-            let Expression::Ident(variable) = &**deref else { unreachable!() };
-            let Some(variable) = scope.get(variable) else { return Err(Error::InvalidIdentifier(variable.clone()))};
-            let Expression::Int(src) = args[0] else {unreachable!()};
-            Ok(vec![Either::Left(Syntax::Instruction(
-                Instruction::Ptrwrite(Item::Address(Value::Given(src)), variable),
-            ))])
         }
         Statement::FunctionCall(func, args) => {
             let Some(parameters) = scope.get_fn(&func) else { return Err(Error::InvalidIdentifier(func))};
@@ -229,6 +216,25 @@ fn compile_statement(
             let (mut code, src) = value_from(rhs, scope, 1)?;
             let Some(dst) = scope.get(&lhs) else { return Err(Error::InvalidIdentifier(lhs))};
             code.push(Syntax::Instruction(Instruction::Mov(src, dst)));
+            Ok(code.into_iter().map(Either::Left).collect())
+        }
+        Statement::StarAssignment(lhs, rhs) => {
+            let (mut code, dst) = value_from(lhs, scope, 1)?;
+            let (rest, src) = value_from(rhs, scope, 5)?;
+            code.extend(rest);
+            match (src, dst) {
+                (src, Item::Address(dst)) => {
+                    code.push(Syntax::Instruction(Instruction::Ptrwrite(src, dst)));
+                }
+                (src, Item::Literal(dst)) => {
+                    code.push(Syntax::Instruction(Instruction::Mov(src, dst)));
+                }
+                (src, dst) => {
+                    return Err(Error::CompilationFailed(format!(
+                        "Couldn't apply format for *{dst} = {src}"
+                    )))
+                }
+            }
             Ok(code.into_iter().map(Either::Left).collect())
         }
         Statement::Assignment(lhs, op, rhs) if crate::asm::MathOp::try_from(op).is_ok() => {
@@ -300,15 +306,31 @@ fn compile_jcmp(
     match cond {
         Expression::UnaryOp(UnaryOp::Not, inner) if matches!(&*inner, Expression::BinaryOp(..)) => {
             let Expression::BinaryOp(lhs, op, rhs) = *inner else { unreachable!() };
-            let cmp_op = crate::asm::CmpOp::try_from(op).map_err(|_| {
-                Error::CompilationFailed(format!("Couldn't turn `{op:?}` into a comparison"))
-            })?;
-            compile_jcmp(
-                Expression::BinaryOp(lhs, cmp_op.inverse().into(), rhs),
-                jmp,
-                scope,
-                hash,
-            )
+            match op {
+                BinaryOp::And => compile_jcmp(
+                    Expression::BinaryOp(
+                        Box::new(Expression::UnaryOp(UnaryOp::Not, lhs)),
+                        BinaryOp::Or,
+                        Box::new(Expression::UnaryOp(UnaryOp::Not, rhs)),
+                    ),
+                    jmp,
+                    scope,
+                    hash,
+                ),
+                op => {
+                    let cmp_op = crate::asm::CmpOp::try_from(op).map_err(|_| {
+                        Error::CompilationFailed(format!(
+                            "Couldn't turn `{op:?}` into a comparison"
+                        ))
+                    })?;
+                    compile_jcmp(
+                        Expression::BinaryOp(lhs, cmp_op.inverse().into(), rhs),
+                        jmp,
+                        scope,
+                        hash,
+                    )
+                }
+            }
         }
         Expression::UnaryOp(UnaryOp::Not, inner)
             if matches!(&*inner, Expression::UnaryOp(UnaryOp::Not, _)) =>
@@ -348,6 +370,14 @@ fn compile_jcmp(
             syn.push(Syntax::Label(else_hash));
             Ok(syn)
         }
+        Expression::BinaryOp(lhs, BinaryOp::Or, rhs) => {
+            let lhs_hash = get_hash((hash, &lhs));
+            let rhs_hash = get_hash((hash, &rhs));
+            let mut syn = Vec::new();
+            syn.extend(compile_jcmp(*lhs, jmp.clone(), scope, lhs_hash)?);
+            syn.extend(compile_jcmp(*rhs, jmp, scope, rhs_hash)?);
+            Ok(syn)
+        }
         cond => Err(Error::InvalidExpression(cond)),
     }
 }
@@ -359,6 +389,10 @@ fn value_from(
 ) -> Result<(Vec<Syntax>, Item), Error> {
     match expr {
         Expression::Int(i) => Ok((Vec::new(), Item::Literal(Value::Given(i)))),
+        Expression::UnaryOp(UnaryOp::Deref, inner) if matches!(&*inner, Expression::Int(_)) => {
+            let Expression::Int(int) = *inner else { unreachable!() };
+            Ok((Vec::new(), Item::Address(Value::Given(int))))
+        }
         Expression::UnaryOp(op @ (UnaryOp::Deref | UnaryOp::Address), inner)
             if matches!(&*inner, Expression::Ident(_)) =>
         {
@@ -377,9 +411,14 @@ fn value_from(
                 Ok((Vec::new(), Item::Literal(var)))
             }
         }
-        Expression::Ident(ident) => scope.get(&ident).map_or_else(
-            || Err(Error::InvalidIdentifier(ident)),
-            |val| Ok((Vec::new(), Item::Address(val))),
+        Expression::Ident(ident) => scope.get_constant(&ident).map_or_else(
+            || {
+                scope.get(&ident).map_or_else(
+                    || Err(Error::InvalidIdentifier(ident)),
+                    |val| Ok((Vec::new(), Item::Address(val))),
+                )
+            },
+            |val| Ok((Vec::new(), Item::Literal(val))),
         ),
         expr => Err(Error::CompilationFailed(format!(
             "Couldn't get a value from expression `{expr:?}`"

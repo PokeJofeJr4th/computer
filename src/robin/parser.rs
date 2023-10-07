@@ -102,7 +102,7 @@ fn inner_parse_top_level<I: Iterator<Item = Token>>(
             let body = inner_parse_block(src)?;
             Ok(vec![TopLevelSyntax::Function(fn_name, args, body)])
         }
-        Some(Token::Keyword(Keyword::Const)) => {
+        Some(Token::Keyword(kw @ (Keyword::Const | Keyword::Global))) => {
             let id = match src.next() {
                 Some(Token::Ident(id)) => id,
                 Some(other) => {
@@ -120,14 +120,16 @@ fn inner_parse_top_level<I: Iterator<Item = Token>>(
                 }
                 None => return Err(ParseError::UnexpectedEOF),
             }
+            let top_level_type = if kw == Keyword::Const {
+                TopLevelSyntax::Constant
+            } else {
+                TopLevelSyntax::Global
+            };
             match src.next() {
-                Some(Token::String(string)) => Ok(vec![TopLevelSyntax::Constant(
-                    id,
-                    Expression::String(string),
-                )]),
-                Some(Token::Int(int)) => {
-                    Ok(vec![TopLevelSyntax::Constant(id, Expression::Int(int))])
+                Some(Token::String(string)) => {
+                    Ok(vec![top_level_type(id, Expression::String(string))])
                 }
+                Some(Token::Int(int)) => Ok(vec![top_level_type(id, Expression::Int(int))]),
                 Some(other) => Err(ParseError::UnexpectedTokenExpected(
                     other,
                     vec![Token::String("string literal".into()), Token::Int(u16::MAX)],
@@ -138,7 +140,11 @@ fn inner_parse_top_level<I: Iterator<Item = Token>>(
         Some(Token::SemiColon) => Ok(Vec::new()),
         Some(other) => Err(ParseError::UnexpectedTokenExpected(
             other,
-            vec![Token::Keyword(Keyword::Fn), Token::Keyword(Keyword::Const)],
+            vec![
+                Token::Keyword(Keyword::Fn),
+                Token::Keyword(Keyword::Const),
+                Token::Keyword(Keyword::Global),
+            ],
         )),
         None => Err(ParseError::UnexpectedEOF),
     }
@@ -214,6 +220,49 @@ fn inner_parse_statement<I: Iterator<Item = Token>>(
             )),
             _ => Err(ParseError::UnexpectedEOF),
         },
+        Some(Token::Star) => {
+            let lhs = inner_parse_expr_greedy(src, 0)?;
+            match src.next() {
+                Some(Token::Eq) => {}
+                Some(tok) => return Err(ParseError::UnexpectedTokenExpected(tok, vec![Token::Eq])),
+                None => return Err(ParseError::UnexpectedEOF),
+            }
+            let rhs = inner_parse_expr_greedy(src, 0)?;
+            Ok(Statement::StarAssignment(lhs, rhs))
+        }
+        Some(Token::Keyword(Keyword::Return)) => {
+            if src.peek() == Some(&Token::SemiColon) {
+                return Ok(Statement::Return(None));
+            }
+            let ret_expr = inner_parse_expr_greedy(src, 0)?;
+            Ok(Statement::Return(Some(ret_expr)))
+        }
+        Some(Token::Keyword(Keyword::Var)) => {
+            let id = match src.next() {
+                Some(Token::Ident(id)) => id,
+                Some(other) => {
+                    return Err(ParseError::UnexpectedTokenExpected(
+                        other,
+                        vec![Token::Ident("identifier".into())],
+                    ))
+                }
+                None => return Err(ParseError::UnexpectedEOF),
+            };
+            match src.peek() {
+                Some(Token::Eq) => {}
+                Some(Token::SemiColon) => return Ok(Statement::Declaration(id, None)),
+                Some(other) => {
+                    return Err(ParseError::UnexpectedTokenExpected(
+                        other.clone(),
+                        vec![Token::Eq],
+                    ))
+                }
+                None => return Err(ParseError::UnexpectedEOF),
+            }
+            src.next();
+            let declaration = inner_parse_expr_greedy(src, 0)?;
+            Ok(Statement::Declaration(id, Some(declaration)))
+        }
         Some(Token::Keyword(kw)) if BlockType::try_from(kw).is_ok() => {
             let cond = inner_parse_expr_greedy(src, 0)?;
             let body = inner_parse_block(src)?;
@@ -232,7 +281,7 @@ fn inner_parse_expr_greedy<I: Iterator<Item = Token>>(
     src: &mut Peekable<I>,
     priority: u8,
 ) -> Result<Expression, ParseError> {
-    if priority == 5 {
+    if priority >= 5 {
         return inner_parse_expr(src);
     }
     let mut start = inner_parse_expr_greedy(src, priority + 1)?;
@@ -283,7 +332,30 @@ fn inner_parse_expr<I: Iterator<Item = Token>>(
                 None => Err(ParseError::UnexpectedEOF),
             }
         }
-        Some(Token::Ident(ident)) => Ok(Expression::Ident(ident)),
+        Some(Token::Ident(ident)) => {
+            if src.peek() != Some(&Token::LParen) {
+                return Ok(Expression::Ident(ident));
+            }
+            src.next();
+            let mut args = Vec::new();
+            if src.peek() != Some(&Token::RParen) {
+                loop {
+                    args.push(inner_parse_expr_greedy(src, 0)?);
+                    match src.next() {
+                        Some(Token::Comma) => {}
+                        Some(Token::RParen) => break,
+                        Some(tok) => {
+                            return Err(ParseError::UnexpectedTokenExpected(
+                                tok,
+                                vec![Token::Comma, Token::RParen],
+                            ))
+                        }
+                        None => return Err(ParseError::UnexpectedEOF),
+                    }
+                }
+            }
+            Ok(Expression::FunctionCall(ident, args))
+        }
         Some(Token::Int(i)) => Ok(Expression::Int(i)),
         Some(other) => Err(ParseError::UnexpectedTokenExpectedStr(
             other,
