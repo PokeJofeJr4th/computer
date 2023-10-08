@@ -247,8 +247,8 @@ impl CPU {
             self.math_op(operation, nibbles.1, nibbles.2, nibbles.3, third_arg);
         } else if nibbles.1 == 0xC {
             let second_arg = self.get_mem(instruction_ptr + 1);
-            self.advance_instruction(1);
-            let third_arg = if nibbles.1 >= 2 {
+            self.advance_instruction(2);
+            let third_arg = if nibbles.2 >= 2 {
                 self.advance_instruction(1);
                 self.get_mem(instruction_ptr + 2)
             } else {
@@ -257,19 +257,30 @@ impl CPU {
             self.math_op(operation, nibbles.2, nibbles.3, second_arg, third_arg);
         } else if nibbles.1 == 0xD {
             let first_arg = self.get_mem(instruction_ptr + 1);
-            self.advance_instruction(1);
-            let third_arg = if nibbles.1 >= 2 {
+            self.advance_instruction(2);
+            let third_arg = if nibbles.2 >= 2 {
                 self.advance_instruction(1);
                 self.get_mem(instruction_ptr + 2)
             } else {
                 0
             };
             self.math_op(operation, nibbles.2, first_arg, nibbles.3, third_arg);
-        } else if nibbles.2 == 0xE {
+        } else if nibbles.1 == 0xE {
             let first_arg = self.get_mem(instruction_ptr + 1);
             let second_arg = self.get_mem(instruction_ptr + 2);
-            self.advance_instruction(2);
+            self.advance_instruction(3);
             self.math_op(operation, nibbles.2, first_arg, second_arg, nibbles.3);
+        } else if nibbles.1 == 0xF {
+            let first_arg = self.get_mem(instruction_ptr + 1);
+            let second_arg = self.get_mem(instruction_ptr + 2);
+            self.advance_instruction(3);
+            let third_arg = if nibbles.2 >= 2 {
+                self.advance_instruction(1);
+                self.get_mem(instruction_ptr + 3)
+            } else {
+                0
+            };
+            self.math_op(operation, nibbles.2, first_arg, second_arg, third_arg);
         }
     }
 
@@ -294,12 +305,12 @@ impl CPU {
             let first_arg = self.get_mem(instruction_ptr + 1);
             let third_arg = self.get_mem(instruction_ptr + 2);
             self.cmp_op(operation, nibbles.2, first_arg, nibbles.3, third_arg);
-        } else if nibbles.2 == 0xE {
+        } else if nibbles.1 == 0xE {
             self.advance_instruction(1);
             let first_arg = self.get_mem(instruction_ptr + 1);
             let second_arg = self.get_mem(instruction_ptr + 2);
             self.cmp_op(operation, nibbles.2, first_arg, second_arg, nibbles.3);
-        } else if nibbles.2 == 0xF {
+        } else if nibbles.1 == 0xF {
             self.advance_instruction(2);
             let first_arg = self.get_mem(instruction_ptr + 1);
             let second_arg = self.get_mem(instruction_ptr + 2);
