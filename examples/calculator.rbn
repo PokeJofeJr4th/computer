@@ -4,7 +4,7 @@ const NINE = 58;
 fn get_input(buffer, capacity) {
     var digit = 0;
     var start = buffer;
-    *2 = 18;
+    *18 = 2;
     yield();
     while (capacity > 0) {
         *buffer = *0;
@@ -34,8 +34,21 @@ fn get_input(buffer, capacity) {
     return output;
 }
 
+fn print(string_location) {
+    *18 = 1;
+    while (*string_location != 0) {
+        *0 = *string_location;
+        string_location += 1;
+        yield();
+    };
+    *0 = 0;
+    yield();
+}
+
+global hello = "Hello there!";
 global first_input_buffer = "          ";
 
 fn main() {
+    print(&hello);
     var first_number = get_input(&first_input_buffer, 10);
 }

@@ -414,19 +414,19 @@ impl Instruction {
                 };
                 match (src.to_number(), src_a.to_number(), jmp.to_number()) {
                     (src @ 0..=0xF, src_a @ 0..=0xF, jmp) => {
-                        vec![cmp_op.first_nibble() | mode << 8 | src << 4 | src_a, jmp]
+                        vec![cmp_op.first_nibble() | (mode << 8) | (src << 4) | src_a, jmp]
                     }
                     (src @ 0..=0xF, src_a, jmp) => {
-                        vec![cmp_op.first_nibble() | 0x0C00 | mode << 4 | src, src_a, jmp]
+                        vec![cmp_op.first_nibble() | 0x0C00 | (mode << 4) | src, src_a, jmp]
                     }
                     (src, src_a @ 0..=0xF, jmp) => {
-                        vec![cmp_op.first_nibble() | 0x0D00 | mode << 4 | src_a, src, jmp]
+                        vec![cmp_op.first_nibble() | 0x0D00 | (mode << 4) | src_a, src, jmp]
                     }
                     (src, src_a, jmp @ 0..=0xF) => {
-                        vec![cmp_op.first_nibble() | 0x0E00 | mode << 4 | jmp, src, src_a]
+                        vec![cmp_op.first_nibble() | 0x0E00 | (mode << 4) | jmp, src, src_a]
                     }
                     (src, src_a, jmp) => {
-                        vec![cmp_op.first_nibble() | 0x0F00 | mode << 4, src, src_a, jmp]
+                        vec![cmp_op.first_nibble() | 0x0F00 | (mode << 4), src, src_a, jmp]
                     }
                 }
             }

@@ -146,15 +146,11 @@ fn compile_fn(
         functions: function_signatures,
         constants,
     };
-    out.push(Either::Left(Syntax::Label(
-        format!("_fn_{name}_ret").into(),
-    )));
-    out.push(Either::Left(Syntax::Reserve(1)));
     out.push(Either::Left(Syntax::Label(format!("_fn_{name}").into())));
     let mut rolling_hash = get_hash(&body);
     for stmt in body {
         rolling_hash = get_hash((&stmt, rolling_hash));
-        out.extend(compile_statement(stmt, &scope, rolling_hash)?);
+        out.extend(compile_statement(stmt, &scope, name, rolling_hash)?);
     }
     out.push(Either::Left(Syntax::Literal(0x0E40)));
     out.push(Either::Left(Syntax::Label(
@@ -170,6 +166,10 @@ fn compile_fn(
             _ => out.push(Either::Left(Syntax::Reserve(1))),
         }
     }
+    out.push(Either::Left(Syntax::Label(
+        format!("_fn_{name}_ret").into(),
+    )));
+    out.push(Either::Left(Syntax::Reserve(1)));
     Ok(out)
 }
 
@@ -177,6 +177,7 @@ fn compile_fn(
 fn compile_statement(
     stmt: Statement,
     scope: &Scope,
+    func: &str,
     hash: u64,
 ) -> Result<Vec<Either<Syntax, Statement>>, Error> {
     match stmt {
@@ -184,67 +185,46 @@ fn compile_statement(
             Ok(vec![Either::Left(Syntax::Instruction(Instruction::Yield))])
         }
         Statement::FunctionCall(func, args) => {
-            let Some(parameters) = scope.get_fn(&func) else { return Err(Error::InvalidIdentifier(func))};
-            if parameters.len() != args.len() {
-                return Err(Error::CompilationFailed(format!(
-                    "Expected {} argument(s) for {func}; got {}",
-                    parameters.len(),
-                    args.len()
-                )));
-            }
-            let mut function_call = Vec::new();
-            for (expr, arg) in args.into_iter().zip(parameters) {
-                let (syn, value) = value_from(expr, scope, 1)?;
-                function_call.extend(syn);
-                function_call.push(Syntax::Instruction(Instruction::Mov(
-                    value,
-                    Value::Label(format!("_fn_{func}_arg_{arg}").into()),
-                )));
-            }
-            let ret_hash: Rc<str> = format!("_call_{func}_ret_{hash:x}").into();
-            function_call.push(Syntax::Instruction(Instruction::Mov(
-                Item::Literal(Value::Label(ret_hash.clone())),
-                Value::Label(format!("_fn_{func}_ret_to").into()),
-            )));
-            function_call.push(Syntax::Instruction(Instruction::Jmp(Item::Literal(
-                Value::Label(format!("_fn_{func}").into()),
-            ))));
-            function_call.push(Syntax::Label(ret_hash));
-            Ok(function_call.into_iter().map(Either::Left).collect())
+            compile_fn_call(func, args, scope, hash).map(|vec| vec.0)
         }
         Statement::Assignment(lhs, AssignOp::Eq, rhs) => {
-            let (mut code, src) = value_from(rhs, scope, 1)?;
+            let (mut code, src) = value_from(rhs, scope, 1, hash)?;
             let Some(dst) = scope.get(&lhs) else { return Err(Error::InvalidIdentifier(lhs))};
-            code.push(Syntax::Instruction(Instruction::Mov(src, dst)));
-            Ok(code.into_iter().map(Either::Left).collect())
+            code.push(Either::Left(Syntax::Instruction(Instruction::Mov(
+                src, dst,
+            ))));
+            Ok(code.into_iter().collect())
         }
         Statement::StarAssignment(lhs, rhs) => {
-            let (mut code, dst) = value_from(lhs, scope, 1)?;
-            let (rest, src) = value_from(rhs, scope, 5)?;
+            let (mut code, dst) = value_from(lhs, scope, 1, hash)?;
+            let (rest, src) = value_from(rhs, scope, 5, hash)?;
             code.extend(rest);
             match (src, dst) {
                 (src, Item::Address(dst)) => {
-                    code.push(Syntax::Instruction(Instruction::Ptrwrite(src, dst)));
+                    code.push(Either::Left(Syntax::Instruction(Instruction::Ptrwrite(
+                        src, dst,
+                    ))));
                 }
                 (src, Item::Literal(dst)) => {
-                    code.push(Syntax::Instruction(Instruction::Mov(src, dst)));
-                }
-                (src, dst) => {
-                    return Err(Error::CompilationFailed(format!(
-                        "Couldn't apply format for *{dst} = {src}"
-                    )))
-                }
+                    code.push(Either::Left(Syntax::Instruction(Instruction::Mov(
+                        src, dst,
+                    ))));
+                } // (src, dst) => {
+                  //     return Err(Error::CompilationFailed(format!(
+                  //         "Couldn't apply format for *{dst} = {src}"
+                  //     )))
+                  // }
             }
-            Ok(code.into_iter().map(Either::Left).collect())
+            Ok(code)
         }
         Statement::Assignment(lhs, op, rhs) if crate::asm::MathOp::try_from(op).is_ok() => {
             let math_op = crate::asm::MathOp::try_from(op).unwrap();
-            let (mut code, src) = value_from(rhs, scope, 1)?;
+            let (mut code, src) = value_from(rhs, scope, 1, hash)?;
             let Some(dst) = scope.get(&lhs) else { return Err(Error::InvalidIdentifier(lhs)) };
-            code.push(Syntax::Instruction(Instruction::MathBinary(
+            code.push(Either::Left(Syntax::Instruction(Instruction::MathBinary(
                 math_op, src, dst,
-            )));
-            Ok(code.into_iter().map(Either::Left).collect())
+            ))));
+            Ok(code)
         }
         Statement::Block(block_type, condition, body) => {
             let hash: Rc<str> = format!(
@@ -262,36 +242,54 @@ fn compile_statement(
                 ))));
             } else if block_type == BlockType::If {
                 // !JMP #tail
-                output.extend(
-                    compile_jcmp(
-                        Expression::UnaryOp(UnaryOp::Not, Box::new(condition.clone())),
-                        Item::Literal(Value::Label(tail_hash.clone())),
-                        scope,
-                        jcmp_hash,
-                    )?
-                    .into_iter()
-                    .map(Either::Left),
-                );
+                output.extend(compile_jcmp(
+                    Expression::UnaryOp(UnaryOp::Not, Box::new(condition.clone())),
+                    Item::Literal(Value::Label(tail_hash.clone())),
+                    scope,
+                    jcmp_hash,
+                )?);
             }
             output.push(Either::Left(Syntax::Label(hash.clone())));
             for stmt in body {
                 let hash = get_hash((&hash, &stmt));
-                output.extend(compile_statement(stmt, scope, hash)?);
+                output.extend(compile_statement(stmt, scope, func, hash)?);
             }
             output.push(Either::Left(Syntax::Label(tail_hash)));
             if block_type == BlockType::While {
-                output.extend(
-                    compile_jcmp(
-                        condition,
-                        Item::Literal(Value::Label(hash)),
-                        scope,
-                        jcmp_hash,
-                    )?
-                    .into_iter()
-                    .map(Either::Left),
-                );
+                output.extend(compile_jcmp(
+                    condition,
+                    Item::Literal(Value::Label(hash)),
+                    scope,
+                    jcmp_hash,
+                )?);
             }
             Ok(output)
+        }
+        Statement::Declaration(var, expr) => {
+            if expr.is_none()
+                || expr
+                    .as_ref()
+                    .is_some_and(|expr| try_as_const(expr.clone(), scope).is_some())
+            {
+                return Ok(Vec::new());
+            }
+            let (mut code, value) = value_from(expr.unwrap(), scope, 1, hash)?;
+            code.push(Either::Left(Syntax::Instruction(Instruction::Mov(
+                value,
+                scope.get(&var).unwrap(),
+            ))));
+            Ok(code)
+        }
+        Statement::Return(Some(value)) => {
+            let (mut code, item) = value_from(value, scope, 1, hash)?;
+            code.push(Either::Left(Syntax::Instruction(Instruction::Mov(
+                item,
+                Value::Label(format!("_fn_{func}_ret").into()),
+            ))));
+            code.push(Either::Left(Syntax::Instruction(Instruction::Jmp(
+                Item::Address(Value::Label(format!("_fn_{func}_ret_to").into())),
+            ))));
+            Ok(code)
         }
         other => Ok(vec![Either::Right(other)]),
     }
@@ -302,7 +300,7 @@ fn compile_jcmp(
     jmp: Item,
     scope: &Scope,
     hash: u64,
-) -> Result<Vec<Syntax>, Error> {
+) -> Result<Vec<Either<Syntax, Statement>>, Error> {
     match cond {
         Expression::UnaryOp(UnaryOp::Not, inner) if matches!(&*inner, Expression::BinaryOp(..)) => {
             let Expression::BinaryOp(lhs, op, rhs) = *inner else { unreachable!() };
@@ -340,19 +338,19 @@ fn compile_jcmp(
         }
         Expression::BinaryOp(lhs, op, rhs)
             if crate::asm::CmpOp::try_from(op).is_ok()
-                && value_from(*lhs.clone(), scope, 1).is_ok()
-                && value_from(*rhs.clone(), scope, 3).is_ok() =>
+                && value_from(*lhs.clone(), scope, 1, hash).is_ok()
+                && value_from(*rhs.clone(), scope, 3, hash).is_ok() =>
         {
-            let lhs = value_from(*lhs, scope, 1)?;
-            let rhs = value_from(*rhs, scope, 3)?;
+            let lhs = value_from(*lhs, scope, 1, hash)?;
+            let rhs = value_from(*rhs, scope, 3, hash)?;
             let cmp_op = crate::asm::CmpOp::try_from(op).unwrap();
             let mut syn = lhs.0;
             syn.extend(rhs.0);
             let Item::Address(lhs) = lhs.1 else { return Err(Error::CompilationFailed(String::from("Can't compare literal on lhs")))};
             let rhs = rhs.1;
-            syn.push(Syntax::Instruction(Instruction::JmpCmp(
+            syn.push(Either::Left(Syntax::Instruction(Instruction::JmpCmp(
                 cmp_op, lhs, rhs, jmp,
-            )));
+            ))));
             Ok(syn)
         }
         Expression::BinaryOp(lhs, BinaryOp::And, rhs) => {
@@ -367,7 +365,7 @@ fn compile_jcmp(
                 lhs_hash,
             )?);
             syn.extend(compile_jcmp(*rhs, jmp, scope, rhs_hash)?);
-            syn.push(Syntax::Label(else_hash));
+            syn.push(Either::Left(Syntax::Label(else_hash)));
             Ok(syn)
         }
         Expression::BinaryOp(lhs, BinaryOp::Or, rhs) => {
@@ -386,7 +384,8 @@ fn value_from(
     expr: Expression,
     scope: &Scope,
     register: u16,
-) -> Result<(Vec<Syntax>, Item), Error> {
+    hash: u64,
+) -> Result<(Vec<Either<Syntax, Statement>>, Item), Error> {
     match expr {
         Expression::Int(i) => Ok((Vec::new(), Item::Literal(Value::Given(i)))),
         Expression::UnaryOp(UnaryOp::Deref, inner) if matches!(&*inner, Expression::Int(_)) => {
@@ -401,10 +400,10 @@ fn value_from(
             let Some(var) = var_value else { return Err(Error::InvalidIdentifier(var))};
             if op == UnaryOp::Deref {
                 Ok((
-                    vec![Syntax::Instruction(Instruction::Ptrread(
+                    vec![Either::Left(Syntax::Instruction(Instruction::Ptrread(
                         var,
                         Value::Given(register),
-                    ))],
+                    )))],
                     Item::Address(Value::Given(register)),
                 ))
             } else {
@@ -420,8 +419,76 @@ fn value_from(
             },
             |val| Ok((Vec::new(), Item::Literal(val))),
         ),
+        Expression::FunctionCall(func, args) => compile_fn_call(func, args, scope, hash),
         expr => Err(Error::CompilationFailed(format!(
             "Couldn't get a value from expression `{expr:?}`"
         ))),
+    }
+}
+
+fn compile_fn_call(
+    func: Rc<str>,
+    args: Vec<Expression>,
+    scope: &Scope,
+    hash: u64,
+) -> Result<(Vec<Either<Syntax, Statement>>, Item), Error> {
+    let Some(parameters) = scope.get_fn(&func) else { return Err(Error::InvalidIdentifier(func))};
+    if parameters.len() != args.len() {
+        return Err(Error::CompilationFailed(format!(
+            "Expected {} argument(s) for {func}; got {}",
+            parameters.len(),
+            args.len()
+        )));
+    }
+    let mut function_call = Vec::new();
+    for (expr, arg) in args.into_iter().zip(parameters) {
+        let (syn, value) = value_from(expr, scope, 1, hash)?;
+        function_call.extend(syn);
+        function_call.push(Either::Left(Syntax::Instruction(Instruction::Mov(
+            value,
+            Value::Label(format!("_fn_{func}_arg_{arg}").into()),
+        ))));
+    }
+    let ret_hash: Rc<str> = format!("_call_{func}_ret_{hash:x}").into();
+    function_call.push(Either::Left(Syntax::Instruction(Instruction::Mov(
+        Item::Literal(Value::Label(ret_hash.clone())),
+        Value::Label(format!("_fn_{func}_ret_to").into()),
+    ))));
+    function_call.push(Either::Left(Syntax::Instruction(Instruction::Jmp(
+        Item::Literal(Value::Label(format!("_fn_{func}").into())),
+    ))));
+    function_call.push(Either::Left(Syntax::Label(ret_hash)));
+    Ok((
+        function_call,
+        Item::Address(Value::Label(format!("_fn_{func}_ret").into())),
+    ))
+}
+
+fn try_as_const(expr: Expression, scope: &Scope) -> Option<Value> {
+    match expr {
+        Expression::Int(int) => Some(Value::Given(int)),
+        Expression::Ident(ident) => scope.get_constant(&ident),
+        Expression::BinaryOp(lhs, op, rhs) => {
+            let Some(Value::Given(lhs)) = try_as_const(*lhs, scope) else { return None };
+            let Some(Value::Given(rhs)) = try_as_const(*rhs, scope) else { return None };
+            Some(Value::Given(match op {
+                BinaryOp::Add => lhs.wrapping_add(rhs),
+                BinaryOp::Sub => lhs.wrapping_sub(rhs),
+                BinaryOp::Mul => lhs.wrapping_mul(rhs),
+                BinaryOp::Eq => u16::from(lhs == rhs),
+                BinaryOp::Ne => u16::from(lhs != rhs),
+                BinaryOp::Lt => u16::from(lhs < rhs),
+                BinaryOp::Le => u16::from(lhs <= rhs),
+                BinaryOp::Gt => u16::from(lhs > rhs),
+                BinaryOp::Ge => u16::from(lhs >= rhs),
+                BinaryOp::BitAnd => lhs & rhs,
+                BinaryOp::BitOr => lhs | rhs,
+                BinaryOp::BitXor => lhs ^ rhs,
+                BinaryOp::Shl => lhs.wrapping_shl(rhs.into()),
+                BinaryOp::Shr => lhs.wrapping_shr(rhs.into()),
+                _ => return None,
+            }))
+        }
+        _ => None,
     }
 }
