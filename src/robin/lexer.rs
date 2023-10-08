@@ -69,6 +69,8 @@ fn lex_inner<I: Iterator<Item = char>>(
         Some('}') => Token::RSquirrely,
         Some('(') => Token::LParen,
         Some(')') => Token::RParen,
+        Some('[') => Token::LSquare,
+        Some(']') => Token::RSquare,
         Some(first @ '0'..='9') => {
             let mut int_buf = String::from(first);
             while let Some(&next @ '0'..='9') = chars.peek() {

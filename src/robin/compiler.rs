@@ -64,9 +64,17 @@ pub fn compile(src: Vec<TopLevelSyntax>) -> Result<Vec<Syntax>, Error> {
                 function_bodies.insert(name, (args, body));
             }
             TopLevelSyntax::Global(name, Expression::String(str)) => {
-                statics.insert(name.clone(), Value::Label(name.clone()));
-                statics_syntax.push(Syntax::Label(name));
+                let label: Rc<str> = format!("_global_{name}").into();
+                statics.insert(name.clone(), Value::Label(label.clone()));
+                statics_syntax.push(Syntax::Label(label));
                 statics_syntax.extend(crate::asm::string_literal(&str));
+            }
+            TopLevelSyntax::Global(name, Expression::Array(arr)) => {
+                let label: Rc<str> = format!("_global_{name}").into();
+                statics.insert(name.clone(), Value::Label(label.clone()));
+                statics_syntax.push(Syntax::Label(label));
+                statics_syntax.extend(arr.into_iter().map(Syntax::Literal));
+                statics_syntax.push(Syntax::Literal(0));
             }
             TopLevelSyntax::Constant(name, Expression::Int(int)) => {
                 constants.insert(name, Value::Given(int));

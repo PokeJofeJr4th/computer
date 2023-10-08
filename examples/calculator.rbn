@@ -47,6 +47,7 @@ fn print(string_location) {
 
 global hello = "Hello there!";
 global first_input_buffer = "          ";
+global powers_of_ten = [10000, 1000, 100, 10, 1];
 
 fn main() {
     print(&hello);

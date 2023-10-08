@@ -43,6 +43,8 @@ pub enum Token {
     RSquirrely,
     LParen,
     RParen,
+    LSquare,
+    RSquare,
 }
 
 #[derive(EnumString, Debug, PartialEq, Eq, Clone, Copy)]
@@ -77,6 +79,7 @@ pub enum Statement {
 #[derive(Debug, Clone, Hash)]
 pub enum Expression {
     Ident(Rc<str>),
+    Array(Vec<u16>),
     String(Rc<str>),
     Int(u16),
     BinaryOp(Box<Expression>, BinaryOp, Box<Expression>),

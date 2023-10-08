@@ -130,9 +130,41 @@ fn inner_parse_top_level<I: Iterator<Item = Token>>(
                     Ok(vec![top_level_type(id, Expression::String(string))])
                 }
                 Some(Token::Int(int)) => Ok(vec![top_level_type(id, Expression::Int(int))]),
+                Some(Token::LSquare) => {
+                    let mut inner = Vec::new();
+                    loop {
+                        match src.next() {
+                            Some(Token::Int(int)) => inner.push(int),
+                            Some(Token::RSquare) => break,
+                            Some(tok) => {
+                                return Err(ParseError::UnexpectedTokenExpected(
+                                    tok,
+                                    vec![Token::Int(u16::MAX), Token::RSquare],
+                                ))
+                            }
+                            None => return Err(ParseError::UnexpectedEOF),
+                        }
+                        match src.next() {
+                            Some(Token::Comma) => {}
+                            Some(Token::RSquare) => break,
+                            Some(tok) => {
+                                return Err(ParseError::UnexpectedTokenExpected(
+                                    tok,
+                                    vec![Token::Comma, Token::RSquare],
+                                ))
+                            }
+                            None => return Err(ParseError::UnexpectedEOF),
+                        }
+                    }
+                    Ok(vec![top_level_type(id, Expression::Array(inner))])
+                }
                 Some(other) => Err(ParseError::UnexpectedTokenExpected(
                     other,
-                    vec![Token::String("string literal".into()), Token::Int(u16::MAX)],
+                    vec![
+                        Token::String("string literal".into()),
+                        Token::LSquare,
+                        Token::Int(u16::MAX),
+                    ],
                 )),
                 None => Err(ParseError::UnexpectedEOF),
             }

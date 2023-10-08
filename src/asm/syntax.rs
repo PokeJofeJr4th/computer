@@ -20,8 +20,8 @@ impl Display for Syntax {
         match self {
             Self::Label(label) => write!(f, ":{label}"),
             Self::Instruction(instr) => write!(f, "{instr}"),
-            Self::Literal(lit) => write!(f, "#{lit:0>4x};"),
-            Self::Reserve(lit) => write!(f, "RESERVE #{lit:0>4x};"),
+            Self::Literal(lit) => write!(f, "#{lit:0>4X};"),
+            Self::Reserve(lit) => write!(f, "RESERVE #{lit:0>4X};"),
         }
     }
 }
